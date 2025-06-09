@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.4.553">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Time Series Analysis - Conclusions</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">Time Series Analysis</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./about.html"> 
+<span class="menu-text">About You</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./intro.html"> 
+<span class="menu-text">Introduction</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./ds.html"> 
+<span class="menu-text">Data Sources</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./dv.html"> 
+<span class="menu-text">Data Visualization</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./explore_analysis.html"> 
+<span class="menu-text">Exploratory Data Analysis</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./uni_TS_model.html"> 
+<span class="menu-text">Univariate TS Models (ARIMA/SARIMA)</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./multi_TS_model.html"> 
+<span class="menu-text">Multivariate TS Models (ARIMAX/SARIMAX/VAR)</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./financial_time_series.html"> 
+<span class="menu-text">Financial Time Series Models (ARCH/GARCH)</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./dl_time_series.html"> 
+<span class="menu-text">DL for Time Series</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./others_analysis.html"> 
+<span class="menu-text">Other: Interrupted TS/ARFIMA/ Spectral Analysis</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link active" href="./conclusions.html" aria-current="page"> 
+<span class="menu-text">Conclusions</span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+          <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#revisit-our-big-picture" id="toc-revisit-our-big-picture" class="nav-link active" data-scroll-target="#revisit-our-big-picture">Revisit our Big Picture</a></li>
+  <li><a href="#part-1-public-health-outcomes" id="toc-part-1-public-health-outcomes" class="nav-link" data-scroll-target="#part-1-public-health-outcomes">PART 1: Public Health Outcomes</a></li>
+  <li><a href="#part-2-healthcare-access-and-utilization" id="toc-part-2-healthcare-access-and-utilization" class="nav-link" data-scroll-target="#part-2-healthcare-access-and-utilization">PART 2: Healthcare Access and Utilization</a></li>
+  <li><a href="#part-3-healthcare-costs" id="toc-part-3-healthcare-costs" class="nav-link" data-scroll-target="#part-3-healthcare-costs">PART 3: Healthcare Costs</a></li>
+  <li><a href="#part-4-health-behaviors-and-risk-factors" id="toc-part-4-health-behaviors-and-risk-factors" class="nav-link" data-scroll-target="#part-4-health-behaviors-and-risk-factors">PART 4: Health Behaviors and Risk Factors</a></li>
+  <li><a href="#part-5-healthcare-financial-market" id="toc-part-5-healthcare-financial-market" class="nav-link" data-scroll-target="#part-5-healthcare-financial-market">PART 5: Healthcare Financial Market</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Conclusions</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="revisit-our-big-picture" class="level2">
+<h2 class="anchored" data-anchor-id="revisit-our-big-picture">Revisit our Big Picture</h2>
+<p><img src="images/Health_US.png" style="width: 100%; height: 100%; display: block; margin: auto;"></p>
+<p>As we can see from the Big Picture, to <strong>understand the overall health status of the United States</strong>, we need to look at various areas. Therefore, in this project, I studied five aspects of Health in the United States: Public Health Outcomes, Healthcare Access and Utilization, Healthcare Costs, Health Behaviors and Risk Factors, and Healthcare Financial Market. For Public Health Outcomes, I examined the average life expectancy, infant mortality rate, and three chronic diseases (heart disease, cancer, and diabetes). For Healthcare Access and Utilization, I looked at the prevalence of health insurance and how often Americans have visited emergency rooms in the past few years. For Healthcare Costs, I looked at the healthcare industry’s contribution to overall GDP, the cost of prescription drugs, and the cost of drug development. For Healthcare Behaviors and Risk Factors, I mainly examined Smoking and Alcohol Consumption. Finally, for the Healthcare Financial Market, I mainly selected four stocks: Pfizer, Vertex, TEVA, and SAGE, which represent the different sectors of the healthcare industry (Large-scale Pharmaceutical, Biotechnology, Generic and Specialty Drug, and Small and Medium-sized Biotech).</p>
+<p>After the above comprehensive analysis and examination, we will have an extensive and in-depth understanding of Health in the United States.</p>
+</section>
+<section id="part-1-public-health-outcomes" class="level2">
+<h2 class="anchored" data-anchor-id="part-1-public-health-outcomes">PART 1: Public Health Outcomes</h2>
+<p><img src="images/ale.jpg" style="width: 100%; height: 100%; display: block; margin: auto;"></p>
+<p><strong>1. How has the average life expectancy in the US changed?</strong></p>
+<p>For the Average Life Expectancy, we first used Plotly and Tableau to do a data visualization of the average life expectancy and total deaths of COVID-19. We can see that in the past two decades, The average life expectancy of Americans has risen every year, reaching 79.1 years in 2019. However, the arrival of COVID-19 has caused a significant drop in the average life expectancy of Americans, with an average life expectancy of only 77 years in 2021. However, as the epidemic eases, average life expectancy rebounds, with an average of 78 years in 2022. We then used an <strong>ARIMA</strong> model and three <strong>deep learning</strong> models to predict future life expectancy, and we found that the model predicted that the average life expectancy of Americans in the future would rebound and then remain about the same.</p>
+<p><strong>2. What are the trends in the mortality rates of major diseases (e.g., heart disease, cancer, diabetes) over the last few decades?</strong></p>
+<p>For the mortality rates of major diseases (e.g., heart disease, cancer, diabetes) over the last few decades, I also used Plotly to show how they changed. We can clearly see that for the higher mortality rates of heart disease and cancer, there has been a dramatic decline in these two diseases over the last few decades. In the case of diabetes, the death rate was essentially flat until 2000 and has declined slightly in recent years. This is due to an improvement in the overall quality of life of Americans, as well as advances in medical care. I then used the <strong>ARIMA</strong> model to project future mortality rates for these three major diseases. I found that future mortality rates for these three diseases will remain flat for some time, implying that advances in medical technology over the past few decades have brought about dramatic reductions in mortality rates for these diseases but that we still do not have a more effective way to cure these diseases further at this time.。</p>
+<p><strong>3. How have infant mortality rates varied over time?</strong></p>
+<p>We can see from the data visualization that infant mortality rates have decreased from 0.94% in 1990 to 0.54% in 2021. I then used the <strong>ARIMA</strong> model to predict future infant mortality rates, and the results showed that there would be a small increase in infant mortality rates. I believe that the issue of infant mortality still deserves a great deal of attention because of the vast inequalities that exist due to race and economic income. <em>Washington, in particular, has one of the highest infant mortality rates in the entire United States</em>, and a black mother has more than three times the mortality rate compared to a white mother.</p>
+<p>What’s more, I also used the ARIMAX model to find out how the average life expectancy of the US be influenced by the mortality rates of Cancer, Heart Diseases, Diabetes, and infant mortality rates (Adu, Appiahene, Afrifa, 2023). The best performing model I found is ARIMA(2,0,1). The forecasting results indicate that average life expectancy in the US is expected to continue increasing, but with a degree of uncertainty, as represented by the widening confidence intervals. This suggests optimism about future health outcomes. As we can see, the death rates due to cancer, heart disease, and diabetes are decreasing, and the infant mortality rate is also decreasing, which could be reasons for the increase in life expectancy. Meanwhile, we can see a decrease of average life expectancy around 2020, which could be due to the COVID-19 pandemic.</p>
+</section>
+<section id="part-2-healthcare-access-and-utilization" class="level2">
+<h2 class="anchored" data-anchor-id="part-2-healthcare-access-and-utilization">PART 2: Healthcare Access and Utilization</h2>
+<p><img src="images/Healthcare_Access.png" style="width: 100%; height: 100%; display: block; margin: auto;"></p>
+<p><strong>6. How has the rate of health insurance coverage changed before and after the implementation of the Affordable Care Act (ACA)?</strong></p>
+<p>First, I visualized the Health Insurance Uncoverage in the US, we can see that the rate of health insurance uncoverage in the United States has been on a decline since 2010, which is the year of the implementation of Barack Obama’s health care reforms. However, starting from 2017, the health insurance uncoverage rate began to rise slightly, which may be attributed to the policies of the Trump administration. It is noteworthy that the 18-64 age group has consistently had the highest rate of medical insurance non-coverage among all age groups.</p>
+<p><strong>7. What are the patterns in emergency room visits over the years?</strong></p>
+<p>Based on the numbers of emergency room visits, we can see that those aged 65 and above have always been the group with the highest rate of emergency room visits, indicating a greater prevalence of health issues or medical emergencies within this age group. And the 45-64 age group has the lowest rate of emergency room visits, suggesting a notable disparity in emergency healthcare utilization across different age groups, with those in the older demographic requiring more frequent and intensive medical attention. Understanding these trends is crucial for healthcare resource allocation, as it highlights the need for targeted interventions and support systems to address the unique healthcare needs of diverse age groups within the population.</p>
+</section>
+<section id="part-3-healthcare-costs" class="level2">
+<h2 class="anchored" data-anchor-id="part-3-healthcare-costs">PART 3: Healthcare Costs</h2>
+<p><img src="images/Healthcare_Cost.jpg" style="width: 100%; height: 100%; display: block; margin: auto;"></p>
+<p><strong>4. How did the Covid-19 influence the people’s health in the US? And how did the pandemic influence the GDP contribution of Health Industry?</strong></p>
+<p>From the fact that the average life expectancy of Americans has dived in 2020, we know that COVID-19 has had a very <strong>negative impact</strong> on the health of Americans, especially the elderly or those with underlying diseases. Then, I applied the <strong>SARIMA</strong> Model to the GDP Contribution of the Healthcare Industry and found that the GDP Contribution of the Healthcare Industry will continue to rise in the future, and the upward trend will be more drastic after COVID-19. The healthcare industry in the US is expected to keep growing in the future. Healthcare is becoming more and more important in the US economy after the COVID-19 pandemic.</p>
+<p><strong>5. Are there seasonal patterns or cyclical fluctuations in the health industry’s GDP contribution, and do they correspond to specific events or seasons?</strong></p>
+<p>After applying the <strong>SARIMA</strong> model to the GDP Contribution of the Healthcare Industry, I used the <strong>AIC</strong>, <strong>BIC</strong>, and <strong>AICc</strong> values to find the best model. As a result, I found the best model is <strong>SARIMA(0,1,1)(0,1,1)[4]</strong>, suggesting that the health industry’s GDP contribution has seasonal patterns. This could arise from fiscal policy cycles that impact healthcare spending or seasonal variations in healthcare service utilization—for instance, higher hospital admissions during winter months due to flu season. Also, implementing healthcare policies, which often follow a cycle, might lead to discernible seasonal effects on the economic indicators within the healthcare sector.</p>
+<p><strong>8. How have the costs of prescription drugs evolved over the past 20 years? And How have the costs of drug development changed over time? Is there a relationship between the costs of prescription drugs and the public health outcomes in the US?</strong></p>
+<p>From the data visualization of prescription drug expenditures in the US, we can see that only 2.7 billion dollars were spent on prescription drugs in 1960. However, since 2000, the Expenditure has grown drastically from 122 billion dollars to 405.9 billion dollars. Interestingly, we can also see that Expenditures increased even more hugely after COVID-19. The costs of drug development increased greatly from the 1970s to the 2010s as well.</p>
+<p>Next, I employed the <strong>VAR</strong> model to explore the potential relationship between the costs of prescription drugs and the average life expectancy. The most robust model I identified is <strong>VAR(3)</strong>, and I conducted forecasting for Life Expectancy and Prescription Drug Expenditure based on this model. The results indicate a fluctuating pattern. The Average Life Expectancy is expected to decrease for some years, then rebound. In contrast, the Prescription Drug Expenditure is anticipated to continue its upward trajectory for the next ten years. This suggests a potential correlation between these two variables. We can speculate that the decrease in life expectancy could be attributed to the COVID-19 pandemic, which has had a profound impact on public health. Consequently, prescription drug expenditure is expected to rise, potentially influencing the average life expectancy.</p>
+</section>
+<section id="part-4-health-behaviors-and-risk-factors" class="level2">
+<h2 class="anchored" data-anchor-id="part-4-health-behaviors-and-risk-factors">PART 4: Health Behaviors and Risk Factors</h2>
+<p><img src="images/Alcohol-And-Nicotine.jpg" style="width: 100%; height: 100%; display: block; margin: auto;"></p>
+<p><strong>9. How have smoking and alcohol consumption rates changed over time, and what impact have they had on public health?</strong></p>
+<p>Before 2009, the number of smokers in the US showed a slight declining trend with some fluctuations. Starting from 2010, there was a sharp decline in the number of smokers. This could be attributed to the passage of <strong>The Family Smoking Prevention and Tobacco Control Act</strong> by the U.S. government in 2010. The act implemented regulatory measures on tobacco products, including prohibiting advertising and promotional activities for tobacco products, and requiring health warnings on tobacco product packaging. Additionally, the U.S. government imposed high taxes on tobacco products. It can also be observed that alcohol consumption in the US was on the rise from 1935 to 1980, peaking in 1980. During the period from 1920 to 1933, the US implemented <strong>Alcohol Prohibition</strong>, we could speculate a sharp decrease in alcohol consumption. After the repeal of Alcohol Prohibition, alcohol consumption showed an upward trend. It is also noted that after reaching a low point in alcohol consumption in 1998, the trend has been increasing in recent years.</p>
+<p>Next, I employed the <strong>VAR</strong> model to explore the potential relationship between Smoking Prevalence, Alcohol Consumption, and the Mortality rates of major diseases (Cancer, Heart Disease, Diabetes). The most robust model I identified is <strong>VAR(6)</strong>, and I conducted forecasting for Smoking Prevalence, Alcohol Consumption, and the Mortality rates of major diseases (Cancer, Heart Disease, Diabetes) based on this model. The forecasting results show that the total number of major diseases first increases and then decreases. The number of adult smokers shows an increasing trend, followed by a decrease. The Alcohol Consumption shows a slight increase and then a considerable reduction. We can find that the trend of Total Major Diseases Deaths is consistent with the Number of Adult Smokers and the Alcohol Consumption, both of which are increasing and then decreasing. This can indicate that unhealthy behaviors can significantly affect people’s health outcomes.</p>
+</section>
+<section id="part-5-healthcare-financial-market" class="level2">
+<h2 class="anchored" data-anchor-id="part-5-healthcare-financial-market">PART 5: Healthcare Financial Market</h2>
+<p><strong>10. How to use time series analysis and forecasting models to predict the healthcare stock prices? And what’s the relationship between them?</strong></p>
+<p>First, I used ShinyApp to show changes in stock prices in the healthcare sector over time. Then, I predicted four stocks (Pfizer, Vertex, Teva and Sage) using an ARIMA model. We can see that Pfizer and Vertex’s stock prices will increase while TEVA and SAGE’s stock prices will decrease. I also used the <strong>VAR</strong> model to test the relationship between them, and the results of VAR(1) show that the predicted stock prices of Pfizer and Vertex are positively correlated. In contrast, the expected stock prices of Teva and SAGE are negatively correlated.</p>
+<p>Furthermore, I harnessed the power of three deep learning models to forecast Pfizer and Teva’s stock prices. Upon comparing the evaluation metrics, it was evident that the deep learning models outperformed traditional methods, underscoring their superior prediction performance.</p>
+<p>Meanwhile, I found that Pfizer and TEVA stock returns have a volatility clustering phenomenon, so I applied the <strong>GARCH</strong> model on top of the ARIMA model and showed their volatility plots.</p>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

@@ -1,0 +1,2952 @@
+---
+title: "Univariate TS Models (ARIMA/SARIMA)"
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(forecast)
+library(astsa) 
+library(xts)
+library(tseries)
+library(fpp2)
+library(fma)
+library(lubridate)
+library(TSstudio)
+library(quantmod)
+library(tidyquant)
+library(plotly)
+library(gridExtra)          
+library(zoo)
+library(readxl)
+library(seasonal)
+```
+
+```{r load_data, warning=FALSE, message=FALSE}
+#| code-fold: true
+
+# Import Stock Price data
+options("getSymbols.warning4.0"=FALSE)
+options("getSymbols.yahoo.warning"=FALSE)
+
+tickers = c("PFE", "VRTX", "TEVA", "SAGE")
+
+for (i in tickers){
+  getSymbols(i,
+             from = "2019-01-01",
+             to = "2024-02-02")}
+
+x <- list(
+  title = "date"
+)
+y <- list(
+  title = "value"
+)
+
+stock <- data.frame(PFE$PFE.Adjusted,
+                    VRTX$VRTX.Adjusted,
+                    TEVA$TEVA.Adjusted,
+                    SAGE$SAGE.Adjusted)
+
+
+stock <- data.frame(stock,rownames(stock))
+colnames(stock) <- append(tickers,'Dates')
+
+stock <- stock %>%
+  rownames_to_column(var = "date")
+
+stock$date<-as.Date(stock$Dates,"%Y-%m-%d")
+
+
+pharma_ts <- ts(stock$PFE, start = c(year(min(stock$date)), month(min(stock$date))), end = c(year(max(stock$date)), month(max(stock$date))), frequency = 365)
+
+biotech_ts <- ts(stock$VRTX, start = c(year(min(stock$date)), month(min(stock$date))), end = c(year(max(stock$date)), month(max(stock$date))), frequency = 365)
+
+drug_ts <- ts(stock$TEVA, start = c(year(min(stock$date)), month(min(stock$date))), end = c(year(max(stock$date)), month(max(stock$date))), frequency = 365)
+
+small_biotech_ts <- ts(stock$SAGE, start = c(year(min(stock$date)), month(min(stock$date))), end = c(year(max(stock$date)), month(max(stock$date))), frequency = 365)
+
+# Import data of Public Health Outcomes
+# Average Life Expectancy
+average_life_expectancy <- read_xlsx("data/life_expectancy_7countries_2000_2022.xlsx")
+# Change it to long format
+average_life_expectancy <- average_life_expectancy %>% 
+  pivot_longer(cols = -Year, 
+               names_to = "Country", 
+               values_to = "Life_Expectancy")
+
+average_life_expectancy$Year <- as.Date(paste(average_life_expectancy$Year, "01", "01", sep = "-"), format = "%Y-%m-%d")
+average_life_expectancy$Life_Expectancy <- as.double(average_life_expectancy$Life_Expectancy)
+
+# Filter to only include the US
+average_life_expectancy <- average_life_expectancy %>% 
+  filter(Country == "United States")
+
+ale_ts <- ts(average_life_expectancy$Life_Expectancy, start = c(year(min(average_life_expectancy$Year)), month(min(average_life_expectancy$Year))), end = c(year(max(average_life_expectancy$Year)), month(max(average_life_expectancy$Year))), frequency = 1) # Yearly data
+
+# Importing the dataset of deaths due to major diseases
+death_cancer <- read_xlsx("data/deaths_cancer_us_1950_2019.xlsx")
+death_heart <- read_xlsx("data/deaths_heart_diseases_us_1950_2019.xlsx")
+death_diabetes <- read_xlsx("data/deaths_diabetes_us_1950_2019.xlsx")
+
+# Merge these three datasets
+death_major_diseases <- merge(death_cancer, death_heart, by = "Year")
+death_major_diseases <- merge(death_major_diseases, death_diabetes, by = "Year")
+
+# Create a new column for total deaths
+death_major_diseases$Total_Deaths <- death_major_diseases$Death_Cancer + death_major_diseases$Death_Heart_Disease + death_major_diseases$Death_Diabetes
+
+# Change Date format
+death_major_diseases$Year <- as.Date(paste(death_major_diseases$Year, "01", "01", sep = "-"), format = "%Y-%m-%d")
+death_major_diseases$Death_Cancer <- as.double(death_major_diseases$Death_Cancer)
+death_major_diseases$Death_Heart_Disease <- as.double(death_major_diseases$Death_Heart_Disease)
+death_major_diseases$Death_Diabetes <- as.double(death_major_diseases$Death_Diabetes)
+
+# Create time series
+# cancer_ts <- ts(death_major_diseases$Death_Cancer, start = c(year(min(death_major_diseases$Year)), month(min(death_major_diseases$Year))), end = c(year(max(death_major_diseases$Year)), month(max(death_major_diseases$Year))), frequency = 1)
+# heart_ts <- ts(death_major_diseases$Death_Heart_Disease, start = c(year(min(death_major_diseases$Year)), month(min(death_major_diseases$Year))), end = c(year(max(death_major_diseases$Year)), month(max(death_major_diseases$Year))), frequency = 1)
+# diabetes_ts <- ts(death_major_diseases$Death_Diabetes, start = c(year(min(death_major_diseases$Year)), month(min(death_major_diseases$Year))), end = c(year(max(death_major_diseases$Year)), month(max(death_major_diseases$Year))), frequency = 1) # Yearly data
+
+major_diseases_ts <- ts(death_major_diseases$Total_Deaths, start = c(year(min(death_major_diseases$Year)), month(min(death_major_diseases$Year))), end = c(year(max(death_major_diseases$Year)), month(max(death_major_diseases$Year))), frequency = 1) # Yearly data
+
+# Importing the dataset of infant mortality rates
+infant_mortality <- read_xlsx("data/infant_mortality_rate_us_1990_2021.xlsx")
+
+# Change Date format
+infant_mortality$Year <- as.Date(paste(infant_mortality$Year, "01", "01", sep = "-"), format = "%Y-%m-%d")
+infant_mortality$Infant_Mortality_Rates <- as.double(infant_mortality$Infant_Mortality_Rates)
+
+# Create time series
+infant_mortality_ts <- ts(infant_mortality$Infant_Mortality_Rates, start = c(year(min(infant_mortality$Year)), month(min(infant_mortality$Year))), end = c(year(max(infant_mortality$Year)), month(max(infant_mortality$Year))), frequency = 1) # Yearly data
+
+# Importing the dataset of share of people without health insurance
+health_insurance <- read_xlsx("data/share_of_people_us_without_health_insurance_age_1997_2022.xlsx")
+
+# Change Date format
+health_insurance$Year <- as.Date(paste(health_insurance$Year, "01", "01", sep = "-"), format = "%Y-%m-%d")
+
+# Change it to long format
+health_insurance <- health_insurance %>% 
+  pivot_longer(cols = -Year, 
+               names_to = "Age_Group", 
+               values_to = "Percentage")
+
+# Filter to all ages 
+health_insurance <- health_insurance %>% 
+  filter(Age_Group == "All ages")
+
+# Create time series
+health_insurance_ts <- ts(health_insurance$Percentage, start = c(year(min(health_insurance$Year)), month(min(health_insurance$Year))), end = c(year(max(health_insurance$Year)), month(max(health_insurance$Year))), frequency = 1) # Yearly data
+
+# Importing the dataset of emergency room visits
+emergency_room <- read_xlsx("data/us_emergency_room_visits_1997_2019_by_age.xlsx")
+
+# Change it to long format
+emergency_room <- emergency_room %>% 
+  pivot_longer(cols = -Year, 
+               names_to = "Age_Group", 
+               values_to = "Visits_Percent")
+
+# Change Date format
+emergency_room$Year <- as.Date(paste(emergency_room$Year, "01", "01", sep = "-"), format = "%Y-%m-%d")
+
+# Get the average visits percentage for all ages
+emergency_room <- emergency_room %>% 
+  group_by(Year) %>%
+  summarise(Average_Visits_Percent = mean(Visits_Percent))
+
+# Create time series
+emergency_room_ts <- ts(emergency_room$Average_Visits_Percent, start = c(year(min(emergency_room$Year)), month(min(emergency_room$Year))), end = c(year(max(emergency_room$Year)), month(max(emergency_room$Year))), frequency = 1)
+
+# Importing the dataset of prescription drug expenditure
+prescription_drug <- read_xlsx("data/prescription_drug_expenditure_us_1960_2022.xlsx")
+
+# Change Date format
+prescription_drug$Year <- as.Date(paste(prescription_drug$Year, "01", "01", sep = "-"), format = "%Y-%m-%d")
+
+# Create time series
+prescription_drug_ts <- ts(prescription_drug$Expenditure, start = c(year(min(prescription_drug$Year)), month(min(prescription_drug$Year))), end = c(year(max(prescription_drug$Year)), month(max(prescription_drug$Year))), frequency = 1)
+
+# Importing the dataset of GDP by industry
+gdp_industry <- read_csv("data/GDP_by_Industry.csv", skip = 4) %>%
+  select(-Line)
+
+colnames(gdp_industry) <- c("Industry", "2018-Q1", "2018-Q2", "2018-Q3", "2018-Q4", "2019-Q1", "2019-Q2", "2019-Q3", "2019-Q4", "2020-Q1", "2020-Q2", "2020-Q3", "2020-Q4", "2021-Q1", "2021-Q2", "2021-Q3", "2021-Q4", "2022-Q1", "2022-Q2", "2022-Q3", "2022-Q4", "2023-Q1", "2023-Q2", "2023-Q3")
+
+gdp_healthcare <- gdp_industry %>%
+  filter(
+           (Industry == "Health care and social assistance")
+  )
+
+## Change it to long format
+gdp_healthcare <- gdp_healthcare %>%
+  pivot_longer(cols = -Industry, 
+               names_to = "Date", 
+               values_to = "GDP")
+
+# Change date to Date format
+gdp_healthcare$Date <- as.yearqtr(gdp_healthcare$Date, format = "%Y-Q%q")
+
+gdp_healthcare$Date <- as.Date(gdp_healthcare$Date)
+gdp_healthcare$GDP <- as.double(gdp_healthcare$GDP)
+
+gdp_healthcare <- gdp_healthcare %>%
+  mutate(
+    year = year(Date)
+  )
+
+# Create time series
+gdp_healthcare_ts <- ts(gdp_healthcare$GDP, start = c(year(min(gdp_healthcare$Date))), end = c(year(max(gdp_healthcare$Date))), frequency = 4) # Quarterly data
+
+# Importing the dataset of number of adult smokers
+adult_smokers <- read_xlsx("data/number_of_adult_smokers_us_1965_2021.xlsx")
+
+# Change Date format
+adult_smokers$Year <- as.Date(paste(adult_smokers$Year, "01", "01", sep = "-"), format = "%Y-%m-%d")
+
+# Create time series
+adult_smokers_ts <- ts(adult_smokers$Number, start = c(year(min(adult_smokers$Year)), month(min(adult_smokers$Year))), end = c(year(max(adult_smokers$Year)), month(max(adult_smokers$Year))), frequency = 1)
+
+# Importing the dataset of per capita alcohol consumption
+alcohol_consumption <- read_xlsx("data/per_capita_alcohol_consumption_of_all_beverages_us_1850_2021.xlsx")
+
+# Change Date format
+alcohol_consumption$Year <- as.Date(paste(alcohol_consumption$Year, "01", "01", sep = "-"), format = "%Y-%m-%d")
+
+# Create time series
+alcohol_consumption_ts <- ts(alcohol_consumption$Consumption, start = c(year(min(alcohol_consumption$Year)), month(min(alcohol_consumption$Year))), end = c(year(max(alcohol_consumption$Year)), month(max(alcohol_consumption$Year))), frequency = 1)
+```
+
+# 1. ACF and PACF Plots
+
+::: panel-tabset
+## Financial/Economy: Large-scale Pharmaceutical
+
+```{r large_pharma_acf_pacf}
+#| code-fold: true
+#| warning: false
+
+pharma_acf <- ggAcf(pharma_ts, lag = 100)+ggtitle("ACF Plot for Pzifer Stock ") + theme_bw() +
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef") 
+
+pharma_pacf <- ggPacf(pharma_ts, lag = 100)+ggtitle("PACF Plot for Pzifer Stock ") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef") 
+grid.arrange(pharma_acf, pharma_pacf, nrow=2)
+```
+
+## Financial/Economy: Biotechnology
+
+```{r biotech_acf_pacf}
+#| code-fold: true
+#| warning: false
+
+biotech_acf <- ggAcf(biotech_ts, lag = 100)+ggtitle("ACF Plot for Vertex Stock ") + theme_bw() +
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+biotech_pacf <- ggPacf(biotech_ts, lag = 100)+ggtitle("PACF Plot for Vertex Stock ") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+grid.arrange(biotech_acf, biotech_pacf, nrow=2)
+```
+
+## Financial/Economy: Generic and Specialty Drug
+
+```{r drug_acf_pacf}
+#| code-fold: true
+#| warning: false
+
+drug_acf <- ggAcf(drug_ts, lag = 100)+ggtitle("ACF Plot for TEVA Stock ") + theme_bw() +
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+drug_pacf <- ggPacf(drug_ts, lag = 100)+ggtitle("PACF Plot for TEVA Stock ") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+grid.arrange(drug_acf, drug_pacf, nrow=2)
+```
+
+## Financial/Economy: Small and Medium-sized Biotech
+
+```{r smallbiotech_acf_pacf}
+#| code-fold: true
+#| warning: false
+
+small_biotech_acf <- ggAcf(small_biotech_ts, lag = 100)+ggtitle("ACF Plot for SAGE Stock ") + theme_bw() +
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+small_biotech_pacf <- ggPacf(small_biotech_ts, lag = 100)+ggtitle("PACF Plot for SAGE Stock ") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+grid.arrange(small_biotech_acf, small_biotech_pacf, nrow=2)
+```
+
+## Public Health Outcomes: Average Life Expectancy
+
+```{r life_expectancy_acf_pacf}
+#| code-fold: true
+#| warning: false
+
+life_expectancy_acf <- ggAcf(ale_ts)+ggtitle("ACF Plot for Average Life Expectancy ") + theme_bw() +
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+life_expectancy_pacf <- ggPacf(ale_ts)+ggtitle("PACF Plot for Average Life Expectancy ") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(life_expectancy_acf, life_expectancy_pacf, nrow=2)
+```
+
+## Public Health Outcomes: Deaths of Major Diseases
+
+```{r deaths_major_diseases_acf_pacf}
+#| code-fold: true
+#| warning: false
+
+# deaths_cancer_acf <- ggAcf(cancer_ts)+ggtitle("ACF Plot for Deaths of Cancer") + theme_bw() +
+#   geom_segment(lineend = "butt", color = "#27aeef") +
+#     geom_hline(yintercept = 0, color = "#27aeef")
+# 
+# deaths_cancer_pacf <- ggPacf(cancer_ts)+ggtitle("PACF Plot for Deaths of Cancer") + theme_bw()+
+#   geom_segment(lineend = "butt", color = "#27aeef") +
+#     geom_hline(yintercept = 0, color = "#27aeef")
+# 
+# deaths_diabetes_acf <- ggAcf(diabetes_ts)+ggtitle("ACF Plot for Deaths of Diabetes") + theme_bw() +
+#   geom_segment(lineend = "butt", color = "#27aeef") +
+#     geom_hline(yintercept = 0, color = "#27aeef")
+# 
+# deaths_diabetes_pacf <- ggPacf(diabetes_ts)+ggtitle("PACF Plot for Deaths of Diabetes") + theme_bw()+
+#   geom_segment(lineend = "butt", color = "#27aeef") +
+#     geom_hline(yintercept = 0, color = "#27aeef")
+# 
+# deaths_heart_acf <- ggAcf(heart_ts)+ggtitle("ACF Plot for Deaths of Heart Disease") + theme_bw() +
+#   geom_segment(lineend = "butt", color = "#27aeef") +
+#     geom_hline(yintercept = 0, color = "#27aeef")
+# 
+# deaths_heart_pacf <- ggPacf(heart_ts)+ggtitle("PACF Plot for Deaths of Heart Disease") + theme_bw()+
+#   geom_segment(lineend = "butt", color = "#27aeef") +
+#     geom_hline(yintercept = 0, color = "#27aeef")
+
+major_diseases_acf <- ggAcf(major_diseases_ts)+ggtitle("ACF Plot for Deaths of Major Diseases") + theme_bw() +
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+major_diseases_pacf <- ggPacf(major_diseases_ts)+ggtitle("PACF Plot for Deaths of Major Diseases") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(major_diseases_acf, major_diseases_pacf, nrow=2)
+
+# grid.arrange(deaths_cancer_acf, deaths_cancer_pacf, deaths_diabetes_acf, deaths_diabetes_pacf, deaths_heart_acf, deaths_heart_pacf, nrow=3)
+```
+
+## Public Health Outcomes: Infant Mortality Rate
+
+```{r infant_mortality_acf_pacf}
+#| code-fold: true
+#| warning: false
+
+infant_mortality_acf <- ggAcf(infant_mortality_ts)+ggtitle("ACF Plot for Infant Mortality Rate") + theme_bw() +
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+infant_mortality_pacf <- ggPacf(infant_mortality_ts)+ggtitle("PACF Plot for Infant Mortality Rate") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(infant_mortality_acf, infant_mortality_pacf, nrow=2)
+```
+
+## Health Access and Utilization: Health Insurance Coverage
+
+```{r health_insurance_acf_pacf}
+#| code-fold: true
+#| warning: false
+
+health_insurance_acf <- ggAcf(health_insurance_ts)+ggtitle("ACF Plot for Health Insurance Coverage") + theme_bw() +
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+health_insurance_pacf <- ggPacf(health_insurance_ts)+ggtitle("PACF Plot for Health Insurance Coverage") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(health_insurance_acf, health_insurance_pacf, nrow=2)
+```
+
+## Health Access and Utilization: Emergency Room Visits
+
+```{r emergency_room_acf_pacf}
+#| code-fold: true
+#| warning: false
+
+emergency_room_acf <- ggAcf(emergency_room_ts)+ggtitle("ACF Plot for Emergency Room Visits") + theme_bw() +
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+emergency_room_pacf <- ggPacf(emergency_room_ts)+ggtitle("PACF Plot for Emergency Room Visits") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(emergency_room_acf, emergency_room_pacf, nrow=2)
+```
+
+## Healthcare Costs: Prescription Drug Costs
+
+```{r prescription_drug_acf_pacf}
+#| code-fold: true
+#| warning: false
+
+prescription_drug_acf <- ggAcf(prescription_drug_ts)+ggtitle("ACF Plot for Prescription Drug Costs") + theme_bw() +
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+prescription_drug_pacf <- ggPacf(prescription_drug_ts)+ggtitle("PACF Plot for Prescription Drug Costs") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(prescription_drug_acf, prescription_drug_pacf, nrow=2)
+```
+
+## Healthcare Costs: GDP Contribution of Healthcare Industry
+
+```{r gdp_healthcare_acf_pacf}
+#| code-fold: true
+#| warning: false
+
+gdp_healthcare_acf <- ggAcf(gdp_healthcare_ts)+ggtitle("ACF Plot for GDP Contribution of Healthcare Industry") + theme_bw() +
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+gdp_healthcare_pacf <- ggPacf(gdp_healthcare_ts)+ggtitle("PACF Plot for GDP Contribution of Healthcare Industry") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(gdp_healthcare_acf, gdp_healthcare_pacf, nrow=2)
+```
+
+## Health Behavoir and Risk Factors: Smoking Prevalence
+
+```{r smoking_acf_pacf}
+#| code-fold: true
+#| warning: false
+
+smoking_acf <- ggAcf(adult_smokers_ts)+ggtitle("ACF Plot for Smoking Prevalence") + theme_bw() +
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+smoking_pacf <- ggPacf(adult_smokers_ts)+ggtitle("PACF Plot for Smoking Prevalence") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(smoking_acf, smoking_pacf, nrow=2)
+```
+
+## Health Behavior and Risk Factors: Alcohol Consumption
+
+```{r alcohol_acf_pacf}
+#| code-fold: true
+#| warning: false
+
+alcohol_acf <- ggAcf(alcohol_consumption_ts)+ggtitle("ACF Plot for Alcohol Consumption") + theme_bw() +
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+alcohol_pacf <- ggPacf(alcohol_consumption_ts)+ggtitle("PACF Plot for Alcohol Consumption") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(alcohol_acf, alcohol_pacf, nrow=2)
+```
+:::
+
+**Financial/Economy: Large-scale Pharmaceutical:** The ACF plot for `Pfizer` stock time series shows significant lags ranging from 1 to 100, reflecting strong autocorrelation where past values considerably affect future values. Conversely, the PACF plot reveals that only the immediate past has a notable impact, suggesting an AR(1) process. Given the broad range of significant lags in the ACF plot, it may be necessary to difference the data to achieve stationarity.
+
+**Financial/Economy: Biotechnology:** The ACF plot reveals significant lags from 1 to 100 and potentially beyond for the `Vertex` stock time series, indicating robust autocorrelation where past values heavily influence future values. However, the PACF plot identifies only the immediate past as having a significant impact, suggesting an AR(1) process. This extensive range of significant lags necessitates differencing the data to achieve stationarity.
+
+**Financial/Economy: Generic and Specialty Drug:** The ACF plot for the `TEVA` stock time series shows significant lags up to approximately 80, reflecting strong autocorrelation. The PACF plot indicates that only the immediate past has a notable influence, pointing to an AR(1) process. Given the number of significant lags, the data may require multiple differencing to become stationary.
+
+**Financial/Economy: Small and Medium-sized Biotech:** The ACF plot exhibits significant lags from 1 to 100 for the `SAGE` stock time series, signaling strong autocorrelation. Similar to the others, the PACF plot suggests that only the immediate past significantly affects future values, indicative of an AR(1) process. The data likely needs multiple differencing due to the extensive significant lags.
+
+**Public Health Outcomes: Average Life Expectancy:** The ACF plot shows significant lags at 1-3(q=1,2,3), implying notable autocorrelation. The PACF plot reveals a significant impact at lag 1(p=1), suggesting an AR(1) model. High autocorrelation observed indicates non-stationarity, necessitating further analysis or transformation.
+
+**Public Health Outcomes: Deaths of Major Diseases(Cancer, Heart Disease, Diabetes)** Significant autocorrelation is present at lags 1-3(q = 1, 2, 3) as shown by the ACF plot, with the PACF plot supporting an AR(1) model(p=1). The persistence of high autocorrelation levels suggests non-stationarity, requiring potential differencing.
+
+**Public Health Outcomes: Infant Mortality Rate** Significant autocorrelations at lags 1-6 are noted, though primarily the first three are considered relevant(q = 1, 2, 3), indicating strong autocorrelation and non-stationarity. The PACF plot corroborates an AR(1) model(p=1). High autocorrelation suggests that differencing might be necessary.
+
+**Healthcare Access and Utilization: Health Insurance Coverage** Significant lags at 1 and 2 are observed in the ACF plot(q=1,2), and the PACF plot confirms an AR(1) model(p=1). The presence of autocorrelation suggests non-stationarity, which may require transformations to stabilize.
+
+**Healthcare Access and Utilization: Emergency Room Visits** The ACF plot shows a significant lag at 1(q=1), and the PACF plot supports an AR(1) model(p=1). Persistent autocorrelation indicates non-stationarity, potentially necessitating further differencing.
+
+**Healthcare Costs: Costs of Prescription Drugs** The ACF plot displays significant lags at 1-2(q=1,2), and the PACF plot identifies a significant impact at lag 1, suggesting an AR(1) model(p=1). The series shows signs of non-stationarity due to high autocorrelation, indicating the need for additional analysis.
+
+**Healthcate Costs: GDP Contribution of Healthcare Industry** Significant lags at 1, 2, and 3 are observed in the ACF plot(q=1,2,3), with the PACF plot supporting an AR(1) model(p=1). This autocorrelation pattern suggests non-stationarity, requiring possibly differencing or other statistical interventions.
+
+**Health Behavior and Risk Factors: Smoking Prevelance**\
+The ACF plot reveals significant lags at 1, 2, and 3(q=1,2,3), with the PACF plot indicating an AR(1) model(p=1). High autocorrelation suggests non-stationarity, necessitating further statistical treatment, such as differencing.
+
+**Health Behavior and Risk Factors: Alcohol Consumpition** Significant lags at 1 and 2 are noted in the ACF plot(q=1,2), and the PACF plot indicates an AR(1) model(p=1). The observed autocorrelation levels point to non-stationarity, implying that additional interventions may be required to achieve stationarity.
+
+# 2. Detrend vs. Difference
+
+::: panel-tabset
+## Financial/Economy: Large-scale Pharmaceutical
+
+```{r large_pharma_detrend_diff}
+#| code-fold: true
+#| warning: false
+
+require(gridExtra)
+fit_pharma = lm(pharma_ts~time(pharma_ts), na.action=NULL) 
+plot1<-autoplot(resid(fit_pharma), main="Detrended", colour = "#27aeef") + theme_bw()
+plot2<-autoplot(diff(pharma_ts), main="First Difference", colour = "#27aeef") + theme_bw()
+
+grid.arrange(plot1, plot2,nrow=2)
+```
+
+## Financial/Economy: Biotechnology
+
+```{r biotech_detrend_diff}
+#| code-fold: true
+#| warning: false
+
+fit_biotech = lm(biotech_ts~time(biotech_ts), na.action=NULL)
+plot1<-autoplot(resid(fit_biotech), main="Detrended", colour = "#27aeef") + theme_bw()
+plot2<-autoplot(diff(biotech_ts), main="First Difference", colour = "#27aeef") + theme_bw()
+
+grid.arrange(plot1, plot2,nrow=2)
+
+```
+
+## Financial/Economy: Generic and Specialty Drug
+
+```{r drug_detrend_diff}
+#| code-fold: true
+#| warning: false
+
+fit_drug = lm(drug_ts~time(drug_ts), na.action=NULL)
+plot1<-autoplot(resid(fit_drug), main="Detrended", colour = "#27aeef") + theme_bw()
+plot2<-autoplot(diff(drug_ts), main="First Difference", colour = "#27aeef") + theme_bw()
+
+grid.arrange(plot1, plot2,nrow=2)
+
+```
+
+## Financial/Economy: Small and Medium-sized Biotech
+
+```{r smallbiotech_detrend_diff}
+#| code-fold: true
+#| warning: false
+
+fit_small_biotech = lm(small_biotech_ts~time(small_biotech_ts), na.action=NULL)
+plot1<-autoplot(resid(fit_small_biotech), main="Detrended", colour = "#27aeef") + theme_bw()
+plot2<-autoplot(diff(small_biotech_ts), main="First Difference", colour = "#27aeef") + theme_bw()
+
+grid.arrange(plot1, plot2,nrow=2)
+```
+
+## Public Health Outcomes: Average Life Expectancy
+
+```{r life_expectancy_detrend_diff}
+#| code-fold: true
+#| warning: false
+
+fit_life_expectancy = lm(ale_ts~time(ale_ts), na.action=NULL)
+plot1<-autoplot(resid(fit_life_expectancy), main="Detrended", colour = "#27aeef") + theme_bw()
+plot2<-autoplot(diff(ale_ts), main="First Difference", colour = "#27aeef") + theme_bw()
+
+grid.arrange(plot1, plot2,nrow=2)
+```
+
+## Public Health Outcomes: Deaths of Major Diseases(Cancer, Heart Disease, Diabetes)
+
+```{r deaths_detrend_diff}
+#| code-fold: true
+#| warning: false
+
+# fit_cancer = lm(cancer_ts~time(cancer_ts), na.action=NULL)
+# plot1_cancer<-autoplot(resid(fit_cancer), main="Detrended", colour = "#27aeef") + theme_bw()
+# plot2_cancer<-autoplot(diff(cancer_ts), main="First Difference", colour = "#27aeef") + theme_bw()
+# 
+# fit_heart = lm(heart_ts~time(heart_ts), na.action=NULL)
+# plot1_heart<-autoplot(resid(fit_heart), main="Detrended", colour = "#27aeef") + theme_bw()
+# plot2_heart<-autoplot(diff(heart_ts), main="First Difference", colour = "#27aeef") + theme_bw()
+# 
+# fit_diabetes = lm(diabetes_ts~time(diabetes_ts), na.action=NULL)
+# plot1_diabetes<-autoplot(resid(fit_diabetes), main="Detrended", colour = "#27aeef") + theme_bw()
+# plot2_diabetes<-autoplot(diff(diabetes_ts), main="First Difference", colour = "#27aeef") + theme_bw()
+# 
+# grid.arrange(plot1_cancer, plot2_cancer, plot1_heart, plot2_heart, plot1_diabetes, plot2_diabetes, nrow=3)
+
+fit_major_diseases = lm(major_diseases_ts~time(major_diseases_ts), na.action=NULL)
+plot1<-autoplot(resid(fit_major_diseases), main="Detrended", colour = "#27aeef") + theme_bw()
+plot2<-autoplot(diff(major_diseases_ts), main="First Difference", colour = "#27aeef") + theme_bw()
+
+grid.arrange(plot1, plot2,nrow=2)
+
+
+```
+
+## Public Health Outcomes: Infant Mortality Rate
+
+```{r infant_mortality_detrend_diff}
+#| code-fold: true
+#| warning: false
+
+fit_infant_mortality = lm(infant_mortality_ts~time(infant_mortality_ts), na.action=NULL)
+plot1<-autoplot(resid(fit_infant_mortality), main="Detrended", colour = "#27aeef") + theme_bw()
+plot2<-autoplot(diff(infant_mortality_ts), main="First Difference", colour = "#27aeef") + theme_bw()
+
+grid.arrange(plot1, plot2,nrow=2)
+```
+
+## Healthcare Access and Utilization: Health Insurance Coverage
+
+```{r health_insurance_detrend_diff}
+#| code-fold: true
+#| warning: false
+
+fit_health_insurance = lm(health_insurance_ts~time(health_insurance_ts), na.action=NULL)
+plot1<-autoplot(resid(fit_health_insurance), main="Detrended", colour = "#27aeef") + theme_bw()
+plot2<-autoplot(diff(health_insurance_ts), main="First Difference", colour = "#27aeef") + theme_bw()
+
+grid.arrange(plot1, plot2,nrow=2)
+```
+
+## Healthcare Access and Utilization: Emergency Room Visits
+
+```{r er_visits_detrend_diff}
+#| code-fold: true
+#| warning: false
+
+fit_er_visits = lm(emergency_room_ts~time(emergency_room_ts), na.action=NULL)
+plot1<-autoplot(resid(fit_er_visits), main="Detrended", colour = "#27aeef") + theme_bw()
+plot2<-autoplot(diff(emergency_room_ts), main="First Difference", colour = "#27aeef") + theme_bw()
+
+grid.arrange(plot1, plot2,nrow=2)
+```
+
+## Healthcare Costs: Prescription Drug Costs
+
+```{r prescription_costs_detrend_diff}
+#| code-fold: true
+#| warning: false
+
+fit_prescription_costs = lm(prescription_drug_ts~time(prescription_drug_ts), na.action=NULL)
+plot1<-autoplot(resid(fit_prescription_costs), main="Detrended", colour = "#27aeef") + theme_bw()
+plot2<-autoplot(diff(prescription_drug_ts), main="First Difference", colour = "#27aeef") + theme_bw()
+
+grid.arrange(plot1, plot2,nrow=2)
+
+```
+
+## Healthcare Costs: GDP Contribution of Healthcare Industry
+
+```{r gdp_healthcare_detrend_diff}
+#| code-fold: true
+#| warning: false
+
+fit_gdp_healthcare = lm(gdp_healthcare_ts~time(gdp_healthcare_ts), na.action=NULL)
+plot1<-autoplot(resid(fit_gdp_healthcare), main="Detrended", colour = "#27aeef") + theme_bw()
+plot2<-autoplot(diff(gdp_healthcare_ts), main="First Difference", colour = "#27aeef") + theme_bw()
+
+grid.arrange(plot1, plot2,nrow=2)
+```
+
+## Health Behaviors: Smoking Prevalence
+
+```{r smoking_detrend_diff}
+#| code-fold: true
+#| warning: false
+
+fit_smoking = lm(adult_smokers_ts~time(adult_smokers_ts), na.action=NULL)
+plot1<-autoplot(resid(fit_smoking), main="Detrended", colour = "#27aeef") + theme_bw()
+plot2<-autoplot(diff(adult_smokers_ts), main="First Difference", colour = "#27aeef") + theme_bw()
+
+grid.arrange(plot1, plot2,nrow=2)
+```
+
+## Health Behaviors: Alcohol Consumption
+
+```{r alcohol_detrend_diff}
+#| code-fold: true
+#| warning: false
+
+fit_alcohol = lm(alcohol_consumption_ts~time(alcohol_consumption_ts), na.action=NULL)
+plot1<-autoplot(resid(fit_alcohol), main="Detrended", colour = "#27aeef") + theme_bw()
+plot2<-autoplot(diff(alcohol_consumption_ts), main="First Difference", colour = "#27aeef") + theme_bw()
+
+grid.arrange(plot1, plot2,nrow=2)
+
+```
+:::
+
+**Detrending** and **first differencing** are two techniques used to transform time series data towards stationarity, but they differ in their methods. Detrending involves removing the underlying trend from the data by estimating the trend component and subtracting it from the original series. This method primarily focuses on eliminating the mean trend but may leave other non-stationary elements such as seasonality or variance changes.
+
+On the other hand, first differencing works by calculating the difference between consecutive observations in the series, using the formula:
+
+$$
+\Delta y_t = y_t - y_{t-1}
+$$
+
+This method not only addresses the linear trends by focusing on the changes between observations but also helps in stabilizing the mean of the series. However, it might not effectively manage non-linear trends or pronounced seasonal patterns. Differencing is particularly useful when the series exhibits consistent upward or downward trends.
+
+Choosing between detrending and first differencing depends on the characteristics of the specific dataset involved. Each method has its strengths and is suited to different types of trend and non-stationarity within the time series.
+
+# 3. Original vs. First Difference
+
+::: panel-tabset
+## Financial/Economy: Large-scale Pharmaceutical
+
+```{r large_pharma_original_first_diff}
+#| code-fold: true
+#| warning: false
+
+
+plot1 <- ggAcf(pharma_ts, 48, main="Original Data: Pzifer Stock") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef") 
+plot2 <- ggAcf(resid(fit_pharma), 48, main="Detrended Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef") 
+plot3 <- ggAcf(diff(pharma_ts), 48, main="First Differenced Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef") 
+
+grid.arrange(plot1, plot2, plot3,ncol=3)
+```
+
+## Financial/Economy: Biotechnology
+
+```{r biotech_original_first_diff}
+#| code-fold: true
+#| warning: false
+
+plot1 <- ggAcf(biotech_ts, 48, main="Original Data: Biotech Stock") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot2 <- ggAcf(resid(fit_biotech), 48, main="Detrended Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot3 <- ggAcf(diff(biotech_ts), 48, main="First Differenced Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(plot1, plot2, plot3,ncol=3)
+```
+
+## Financial/Economy: Generic and Specialty Drug
+
+```{r drug_original_first_diff}
+#| code-fold: true
+#| warning: false
+
+plot1 <- ggAcf(drug_ts, 48, main="Original Data: Drug Stock") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot2 <- ggAcf(resid(fit_drug), 48, main="Detrended Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot3 <- ggAcf(diff(drug_ts), 48, main="First Differenced Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(plot1, plot2, plot3,ncol=3)
+```
+
+## Financial/Economy: Small Biotechnology
+
+```{r smallbiotech_original_first_diff}
+#| code-fold: true
+#| warning: false
+
+plot1 <- ggAcf(small_biotech_ts, 48, main="Original Data: Small Biotech Stock") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot2 <- ggAcf(resid(fit_small_biotech), 48, main="Detrended Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot3 <- ggAcf(diff(small_biotech_ts), 48, main="First Differenced Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(plot1, plot2, plot3,ncol=3)
+```
+
+## Public Health Outcomes: Average Life Expectancy
+
+```{r life_expectancy_original_first_diff}
+#| code-fold: true
+#| warning: false
+
+plot1 <- ggAcf(ale_ts, 48, main="Original Data: Life Expectancy") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot2 <- ggAcf(resid(fit_life_expectancy), 48, main="Detrended Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot3 <- ggAcf(diff(ale_ts), 48, main="First Differenced Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(plot1, plot2, plot3,ncol=3)
+```
+
+## Public Health Outcomes: Deaths of Major Diseases
+
+```{r deaths_major_diseases_original_first_diff}
+#| code-fold: true
+#| warning: false
+
+# # Cancer
+# plot1_cancer <- ggAcf(cancer_ts, 48, main="Original Data: Deaths of Cancer") + theme_bw()+
+#   geom_segment(lineend = "butt", color = "#27aeef") +
+#     geom_hline(yintercept = 0, color = "#27aeef")
+# 
+# plot2_cancer <- ggAcf(resid(fit_cancer), 48, main="Detrended Data") + theme_bw()+
+#   geom_segment(lineend = "butt", color = "#27aeef") +
+#     geom_hline(yintercept = 0, color = "#27aeef")
+# 
+# plot3_cancer <- ggAcf(diff(cancer_ts), 48, main="First Differenced Data") + theme_bw()+
+#   geom_segment(lineend = "butt", color = "#27aeef") +
+#     geom_hline(yintercept = 0, color = "#27aeef")
+# 
+# grid.arrange(plot1_cancer, plot2_cancer, plot3_cancer,ncol=3)
+# 
+# # Heart Disease
+# plot1_heart <- ggAcf(heart_ts, 48, main="Original Data: Deaths of Heart Disease") + theme_bw()+
+#   geom_segment(lineend = "butt", color = "#27aeef") +
+#     geom_hline(yintercept = 0, color = "#27aeef")
+# 
+# plot2_heart <- ggAcf(resid(fit_heart), 48, main="Detrended Data") + theme_bw()+
+#   geom_segment(lineend = "butt", color = "#27aeef") +
+#     geom_hline(yintercept = 0, color = "#27aeef")
+# 
+# plot3_heart <- ggAcf(diff(heart_ts), 48, main="First Differenced Data") + theme_bw()+
+#   geom_segment(lineend = "butt", color = "#27aeef") +
+#     geom_hline(yintercept = 0, color = "#27aeef")
+# 
+# grid.arrange(plot1_heart, plot2_heart, plot3_heart,ncol=3)
+# 
+# # Diabetes
+# plot1_diabetes <- ggAcf(diabetes_ts, 48, main="Original Data: Deaths of Diabetes") + theme_bw()+
+#   geom_segment(lineend = "butt", color = "#27aeef") +
+#     geom_hline(yintercept = 0, color = "#27aeef")
+# 
+# plot2_diabetes <- ggAcf(resid(fit_diabetes), 48, main="Detrended Data") + theme_bw()+
+#   geom_segment(lineend = "butt", color = "#27aeef") +
+#     geom_hline(yintercept = 0, color = "#27aeef")
+# 
+# plot3_diabetes <- ggAcf(diff(diabetes_ts), 48, main="First Differenced Data") + theme_bw()+
+#   geom_segment(lineend = "butt", color = "#27aeef") +
+#     geom_hline(yintercept = 0, color = "#27aeef")
+# 
+# grid.arrange(plot1_diabetes, plot2_diabetes, plot3_diabetes,ncol=3)
+
+plot1 <- ggAcf(major_diseases_ts, 48, main="Original Data: Deaths of Major Diseases") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot2 <- ggAcf(resid(fit_major_diseases), 48, main="Detrended Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot3 <- ggAcf(diff(major_diseases_ts), 48, main="First Differenced Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(plot1, plot2, plot3,ncol=3)
+```
+
+## Public Health Outcomes: Infant Mortality
+
+```{r infant_mortality_original_first_diff}
+#| code-fold: true
+#| warning: false
+
+plot1 <- ggAcf(infant_mortality_ts, 48, main="Original Data: Infant Mortality") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot2 <- ggAcf(resid(fit_infant_mortality), 48, main="Detrended Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot3 <- ggAcf(diff(infant_mortality_ts), 48, main="First Differenced Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(plot1, plot2, plot3,ncol=3)
+```
+
+## Healthcare Access and Utilization: Health Insurance Coverage
+
+```{r health_insurance_original_first_diff}
+#| code-fold: true
+#| warning: false
+
+plot1 <- ggAcf(health_insurance_ts, 48, main="Original Data: Health Insurance Coverage") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot2 <- ggAcf(resid(fit_health_insurance), 48, main="Detrended Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot3 <- ggAcf(diff(health_insurance_ts), 48, main="First Differenced Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(plot1, plot2, plot3,ncol=3)
+```
+
+## Healthcare Access and Utilization: Emergency Room Visits
+
+```{r emergency_room_original_first_diff}
+#| code-fold: true
+#| warning: false
+
+plot1 <- ggAcf(emergency_room_ts, 48, main="Original Data: Emergency Room Visits") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot2 <- ggAcf(resid(fit_er_visits), 48, main="Detrended Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot3 <- ggAcf(diff(emergency_room_ts), 48, main="First Differenced Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(plot1, plot2, plot3,ncol=3)
+```
+
+## Healthcare Costs: Costs of Prescription Drugs
+
+```{r prescription_drug_original_first_diff}
+#| code-fold: true
+#| warning: false
+
+plot1 <- ggAcf(prescription_drug_ts, 48, main="Original Data: Costs of Prescription Drugs") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot2 <- ggAcf(resid(fit_prescription_costs), 48, main="Detrended Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot3 <- ggAcf(diff(prescription_drug_ts), 48, main="First Differenced Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(plot1, plot2, plot3,ncol=3)
+```
+
+## Healthcare Costs: GDP Contribution of Healthcare Industry
+
+```{r gdp_healthcare_original_first_diff}
+#| code-fold: true
+#| warning: false
+
+plot1 <- ggAcf(gdp_healthcare_ts, 48, main="Original Data: GDP Contribution of Healthcare Industry") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot2 <- ggAcf(resid(fit_gdp_healthcare), 48, main="Detrended Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot3 <- ggAcf(diff(gdp_healthcare_ts), 48, main="First Differenced Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(plot1, plot2, plot3,ncol=3)
+```
+
+## Health Behavior and Risk Factors: Smoking Prevalence
+
+```{r smoking_prevalence_original_first_diff}
+#| code-fold: true
+#| warning: false
+
+plot1 <- ggAcf(adult_smokers_ts, 48, main="Original Data: Smoking Prevalence") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot2 <- ggAcf(resid(fit_smoking), 48, main="Detrended Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot3 <- ggAcf(diff(adult_smokers_ts), 48, main="First Differenced Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(plot1, plot2, plot3,ncol=3)
+```
+
+## Health Behavior and Risk Factors: Alcohol Consumption
+
+```{r alcohol_consumption_original_first_diff}
+#| code-fold: true
+#| warning: false
+
+plot1 <- ggAcf(alcohol_consumption_ts, 48, main="Original Data: Alcohol Consumption") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot2 <- ggAcf(resid(fit_alcohol), 48, main="Detrended Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+plot3 <- ggAcf(diff(alcohol_consumption_ts), 48, main="First Differenced Data") + theme_bw()+
+  geom_segment(lineend = "butt", color = "#27aeef") +
+    geom_hline(yintercept = 0, color = "#27aeef")
+
+grid.arrange(plot1, plot2, plot3,ncol=3)
+```
+:::
+
+First differencing is a widely used technique to transform time series data into a stationary state. This involves computing the difference between consecutive values in the series, as represented by the formula:
+
+$$
+\Delta y_t = y_t - y_{t-1}
+$$
+
+In the formula, we have the following variables:
+
+-   $\Delta y_t$: the difference at time t
+
+-   $y_t$: the value of the series at time t
+
+-   $y_{t−1}$: the value of the series at time t−1
+
+This method effectively removes linear trends, potentially leading to stationarity. It is particularly useful when the series displays consistent upward or downward trends. However, first differencing does not guarantee stationarity in all cases; some series may require additional transformations, such as second differencing or other methods, to achieve full stationarity.
+
+The plots provided in this section illustrate the transformation from original to first differenced data. All of the series appear to become stationary following this transformation, although a few retain minor autocorrelations (values slightly over 0.2, but not significant).
+
+As we know, if we want to apply ARIMA models to time series data, the data must be stationary. That's why we need to use first differencing to transform the data into a stationary state. Meanwhile, the `Augmented Dickey-Fuller (ADF) test` is a common method to determine whether a series is stationary. The null hypothesis of the ADF test is that the series is non-stationary. If the p-value is less than the significance level (e.g., 0.05), we can reject the null hypothesis and conclude that the series is stationary. In the next section, we will apply the ADF test to the first differenced data to confirm stationarity.
+
+# 4. Adjusted Dickey-Fuller Test
+
+::: panel-tabset
+## Financial/Economy: Large-scale Pharmaceutical
+
+```{r pharma_adf_adjust_test}
+#| code-fold: true
+#| warning: false
+
+tseries::adf.test(diff(pharma_ts))
+```
+
+## Financial/Economy: Biotechnology
+
+```{r biotech_adf_adjust_test}
+#| code-fold: true
+#| warning: false
+
+tseries::adf.test(diff(biotech_ts))
+
+```
+
+## Financial/Economy: Generic and Specialty Drug
+
+```{r drug_adf_adjust_test}
+#| code-fold: true
+#| warning: false
+
+tseries::adf.test(diff(drug_ts))
+```
+
+## Financial/Economy: Small Biotechnology
+
+```{r smallbiotech_adf_adjust_test}
+#| code-fold: true
+#| warning: false
+
+tseries::adf.test(diff(small_biotech_ts))
+
+```
+
+## Public Health Outcomes: Average Life Expectancy
+
+```{r life_expectancy_adf_adjust_test}
+#| code-fold: true
+#| warning: false
+
+tseries::adf.test(diff(ale_ts))
+
+```
+
+## Public Health Outcomes: Deaths of Major Diseases
+
+```{r major_diseases_adf_adjust_test}
+#| code-fold: true
+#| warning: false
+
+# # Cancer
+# tseries::adf.test(diff(cancer_ts))
+# 
+# # Heart Disease
+# tseries::adf.test(diff(heart_ts))
+# 
+# # Diabetes
+# tseries::adf.test(diff(diabetes_ts))
+
+# All Major Diseases
+tseries::adf.test(diff(major_diseases_ts))
+
+```
+
+## Public Health Outcomes: Infant Mortality Rate
+
+```{r infant_mortality_adf_adjust_test}
+#| code-fold: true
+#| warning: false
+
+tseries::adf.test(diff(infant_mortality_ts))
+```
+
+## Healthcare Access and Utilization: Health Insurance Coverage
+
+```{r health_insurance_adf_adjust_test}
+#| code-fold: true
+#| warning: false
+
+tseries::adf.test(diff(health_insurance_ts))
+```
+
+## Healthcare Access and Utilization: Emergency Room Visits
+
+```{r emergency_room_adf_adjust_test}
+#| code-fold: true
+#| warning: false
+
+tseries::adf.test(diff(emergency_room_ts))
+```
+
+## Healthcare Costs: Prescription Drug Costs
+
+```{r prescription_drug_adf_adjust_test}
+#| code-fold: true
+#| warning: false
+
+tseries::adf.test(diff(prescription_drug_ts))
+```
+
+## Healthcare Costs: GDP Contribution of Healthcare Industry
+
+```{r gdp_healthcare_adf_adjust_test}
+#| code-fold: true
+#| warning: false
+
+tseries::adf.test(diff(gdp_healthcare_ts))
+```
+
+## Health Behaviors and Risk Factors: Smoking Prevalence
+
+```{r smoking_prevalence_adf_adjust_test}
+#| code-fold: true
+#| warning: false
+
+tseries::adf.test(diff(adult_smokers_ts))
+```
+
+## Health Behaviors and Risk Factors: Alcohol Consumption
+
+```{r alcohol_consumption_adf_adjust_test}
+#| code-fold: true
+#| warning: false
+
+tseries::adf.test(diff(alcohol_consumption_ts))
+```
+:::
+
+After applying differencing to our original data, we successfully achieved stationarity for several of our series. Most of the p-values obtained are below 0.05, providing sufficient evidence to reject the null hypothesis at the 5% significance level. Consequently, we can say that these series are now stationary:
+
+-   Financial/Economy: Large-scale Pharmaceutical
+-   Financial/Economy: Biotechnology
+-   Financial/Economy: Small Biotechnology
+-   Public Health Outcomes: Deaths of Major Diseases
+-   Healthcare Costs: Prescription Drug Costs
+-   Healthcare Costs: GDP Contribution of Healthcare Industry
+-   Health Behaviors and Risk Factors: Smoking Prevalence
+-   Health Behaviors and Risk Factors: Alcohol Consumption
+
+Despite the Dickey-Fuller test results suggesting otherwise, the ACF plot, which is considered more reliable in this context, indicates that the following series are indeed stationary:
+
+-   Public Health Outcomes: Average Life Expectancy
+-   Public Health Outcomes: Infant Mortality Rate
+-   Healthcare Access and Utilization: Health Insurance Coverage
+-   Healthcare Access and Utilization: Emergency Room Visits
+
+# 5 ACF/PACF-based Assessment For p, d, and q
+
+Based on the ACF and PACF plots of the original data, we can determine the values of (p), (d), and (q) for the ARIMA models in the following sections. The parameter (p) is identified by observing the most significant lags in the PACF plot, which indicates the order of the autoregressive part of the model. For the parameter (q), we look at the most significant lags in the ACF plot to determine the order of the moving average component.
+
+Since all the series were differenced once as part of the preprocessing, the (d) value is set to 1. However, for the purposes of model selection and evaluation through criteria like AIC (Akaike Information Criterion) and BIC (Bayesian Information Criterion), we consider (d) values of both 0 and 1. This approach allows us to compare models and choose the one that best balances fit and complexity, ensuring the most accurate and efficient representation of the data.
+
+**Financial/Economy: Large-scale Pharmaceutical:**
+
+q = 1, 2, 3, 4, 5, 6, 7, 8, 9
+
+d = 0, 1
+
+p = 1, 2
+
+**Financial/Economy: Biotechnology:**
+
+q = 1, 2, 3, 4, 5, 6, 7, 8, 9
+
+d = 0, 1
+
+p = 1, 2
+
+**Financial/Economy: Generic and Specialty Drug:**
+
+q = 1, 2, 3, 4, 5, 6, 7, 8, 9
+
+d = 0, 1
+
+p = 1
+
+**Financial/Economy: Small Biotechnology:**
+
+q = 1, 2, 3, 4, 5, 6, 7, 8, 9
+
+d = 0, 1
+
+p = 1
+
+**Public Health Outcomes: Average Life Expectancy:**
+
+q = 1, 2, 3
+
+d = 0, 1
+
+p = 1
+
+**Public Health Outcomes: Deaths of Major Diseases:**
+
+q = 1, 2, 3
+
+d = 0, 1
+
+p = 1
+
+**Public Health Outcomes: Infant Mortality Rate:**
+
+q = 1, 2, 3, 4, 5, 6
+
+d = 0, 1
+
+p = 1
+
+**Healthcare Access and Utilization: Health Insurance Coverage:**
+
+q = 1, 2
+
+d = 0, 1
+
+p = 1
+
+**Healthcare Access and Utilization: Emergency Room Visits:**
+
+q = 1
+
+d = 0, 1
+
+p = 1
+
+**Healthcare Costs: Prescription Drug Costs:**
+
+q = 1, 2
+
+d = 0, 1
+
+p = 1
+
+**Healthcare Costs: GDP Contribution of Healthcare Industry:**
+
+q = 1, 2, 3
+
+d = 0, 1
+
+p = 1
+
+**Health Behaviors and Risk Factors: Smoking Prevalence:**
+
+q = 1, 2, 3
+
+d = 0, 1
+
+p = 1
+
+**Health Behaviors and Risk Factors: Alcohol Consumption:**
+
+q = 1, 2
+
+d = 0, 1
+
+p = 1, 2
+
+# 6. AIC & BIC
+
+::: panel-tabset
+## Financial/Economy: Large-scale Pharmaceutical
+
+```{r large_pharma_aic_bic}
+#| code-fold: true
+
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*55),nrow=55) 
+
+
+for (p in 0:2)
+{
+  for(q in 1:9)
+  {
+    for(d in 0:1)
+    {
+      
+      if(p-1+d+q-1<=8) #usual threshold
+      {
+        
+        model<- Arima(diff(pharma_ts),order=c(p,d,q),include.drift=TRUE) 
+        ls[i,]= c(p,d,q,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+
+## Financial/Economy: Biotechnology
+
+```{r biotech_aic_bic}
+#| code-fold: true
+
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*55),nrow=55) 
+
+
+for (p in 0:2)
+{
+  for(q in 1:9)
+  {
+    for(d in 0:1)
+    {
+      
+      if(p-1+d+q-1<=8) #usual threshold
+      {
+        
+        model<- Arima(diff(biotech_ts),order=c(p,d,q),include.drift=TRUE) 
+        ls[i,]= c(p,d,q,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+
+## Financial/Economy: Generic and Specialty Drug
+
+```{r generic_specialty_aic_bic}
+#| code-fold: true
+
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*35),nrow=35) 
+
+
+for (p in 0:1)
+{
+  for(q in 1:9)
+  {
+    for(d in 0:1)
+    {
+      
+      if(p-1+d+q-1<=8) #usual threshold
+      {
+        
+        model<- Arima(diff(drug_ts),order=c(p,d,q),include.drift=TRUE) 
+        ls[i,]= c(p,d,q,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+
+## Financial/Economy: Small Biotechnology
+
+```{r small_biotech_aic_bic}
+#| code-fold: true
+
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*35),nrow=35) 
+
+
+for (p in 0:1)
+{
+  for(q in 1:9)
+  {
+    for(d in 0:1)
+    {
+      
+      if(p-1+d+q-1<=8) #usual threshold
+      {
+        
+        model<- Arima(diff(small_biotech_ts),order=c(p,d,q),include.drift=TRUE) 
+        ls[i,]= c(p,d,q,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+
+## Public Health Outcomes: Average Life Expectancy
+
+```{r avg_life_exp_aic_bic}
+#| code-fold: true
+
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*12),nrow=12) 
+
+
+for (p in 0:1)
+{
+  for(q in 1:3)
+  {
+    for(d in 0:1)
+    {
+      
+      if(p-1+d+q-1<=8) #usual threshold
+      {
+        
+        model<- Arima(diff(ale_ts),order=c(p,d,q),include.drift=TRUE) 
+        ls[i,]= c(p,d,q,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+
+## Public Health Outcomes: Deaths of Major Diseases
+
+```{r deaths_major_diseases_aic_bic}
+#| code-fold: true
+
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*12),nrow=12) 
+
+
+for (p in 0:1)
+{
+  for(q in 1:3)
+  {
+    for(d in 0:1)
+    {
+      
+      if(p-1+d+q-1<=8) #usual threshold
+      {
+        
+        model<- Arima(diff(major_diseases_ts),order=c(p,d,q),include.drift=TRUE) 
+        ls[i,]= c(p,d,q,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+
+## Public Health Outcomes: Infant Mortality Rate
+
+```{r infant_mortality_aic_bic}
+#| code-fold: true
+
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*24),nrow=24) 
+
+
+for (p in 0:1)
+{
+  for(q in 1:6)
+  {
+    for(d in 0:1)
+    {
+      
+      if(p-1+d+q-1<=8) #usual threshold
+      {
+        
+        model<- Arima(diff(infant_mortality_ts),order=c(p,d,q),include.drift=TRUE) 
+        ls[i,]= c(p,d,q,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+
+## Healthcare Access and Utilization: Health Insurance Coverage
+
+```{r health_insurance_coverage_aic_bic}
+#| code-fold: true
+
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*8),nrow=8) 
+
+
+for (p in 0:1)
+{
+  for(q in 1:2)
+  {
+    for(d in 0:1)
+    {
+      
+      if(p-1+d+q-1<=8) #usual threshold
+      {
+        
+        model<- Arima(diff(health_insurance_ts),order=c(p,d,q),include.drift=TRUE) 
+        ls[i,]= c(p,d,q,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+
+## Healthcare Access and Utilization: Emergency Room Visits
+
+```{r emergency_room_visits_aic_bic}
+#| code-fold: true
+
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*4),nrow=4) 
+
+
+for (p in 0:1)
+{
+  for(q in 1)
+  {
+    for(d in 0:1)
+    {
+      
+      if(p-1+d+q-1<=8) #usual threshold
+      {
+        
+        model<- Arima(diff(emergency_room_ts),order=c(p,d,q),include.drift=TRUE) 
+        ls[i,]= c(p,d,q,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+
+## Healthcare Costs: Prescription Drug Costs
+
+```{r prescription_drug_costs_aic_bic}
+#| code-fold: true
+
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*8),nrow=8) 
+
+
+for (p in 0:1)
+{
+  for(q in 1:2)
+  {
+    for(d in 0:1)
+    {
+      
+      if(p-1+d+q-1<=8) #usual threshold
+      {
+        
+        model<- Arima(diff(drug_ts),order=c(p,d,q),include.drift=TRUE) 
+        ls[i,]= c(p,d,q,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+
+## Healthcare Costs: GDP Contribution of Healthcare Industry
+
+```{r gdp_contribution_aic_bic}
+#| code-fold: true
+
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*12),nrow=12) 
+
+
+for (p in 0:1)
+{
+  for(q in 1:3)
+  {
+    for(d in 0:1)
+    {
+      
+      if(p-1+d+q-1<=8) #usual threshold
+      {
+        
+        model<- Arima(diff(gdp_healthcare_ts),order=c(p,d,q),include.drift=TRUE) 
+        ls[i,]= c(p,d,q,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+
+## Health Behaviors and Risk Factors: Smoking Prevalence
+
+```{r smoking_prevalence_aic_bic}
+#| code-fold: true
+
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*12),nrow=12) 
+
+
+for (p in 0:1)
+{
+  for(q in 1:3)
+  {
+    for(d in 0:1)
+    {
+      
+      if(p-1+d+q-1<=8) #usual threshold
+      {
+        
+        model<- Arima(diff(adult_smokers_ts),order=c(p,d,q),include.drift=TRUE) 
+        ls[i,]= c(p,d,q,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+
+## Health Behaviors and Risk Factors: Alcohol Consumption
+
+```{r alcohol_consumption_aic_bic}
+#| code-fold: true
+
+d=1
+i=1
+temp= data.frame()
+ls=matrix(rep(NA,6*12),nrow=12) 
+
+
+for (p in 0:2)
+{
+  for(q in 1:2)
+  {
+    for(d in 0:1)
+    {
+      
+      if(p-1+d+q-1<=8) #usual threshold
+      {
+        
+        model<- Arima(diff(alcohol_consumption_ts),order=c(p,d,q),include.drift=TRUE) 
+        ls[i,]= c(p,d,q,model$aic,model$bic,model$aicc)
+        i=i+1
+        #print(i)
+        
+      }
+      
+    }
+  }
+}
+
+
+temp= as.data.frame(ls)
+names(temp)= c("p","d","q","AIC","BIC","AICc")
+
+#temp
+knitr::kable(temp)
+```
+:::
+
+Based on the AIC and BIC values, we can get the best ARIMA model for each time series. In the next section, we will fit every specific ARIMA model to each time series data.
+
+# 7. Fitting ARIMA
+
+::: panel-tabset
+## Financial/Economy: Large-scale Pharmaceutical
+
+```{r large_pharma_arima}
+#| code-fold: true
+
+fit_pharmaAR <- Arima(diff(pharma_ts), order=c(2, 0, 8),include.drift = TRUE) 
+summary(fit_pharmaAR)
+```
+
+## Financial/Economy: Biotechnology
+
+```{r biotech_arima}
+#| code-fold: true
+
+fit_biotechAR <- Arima(diff(biotech_ts), order=c(2, 0, 6),include.drift = TRUE)
+summary(fit_biotechAR)
+
+```
+
+## Financial/Economy: Generic and Specialty Drug
+
+```{r generic_specialty_arima}
+#| code-fold: true
+
+fit_generic_specialtyAR <- Arima(diff(drug_ts), order=c(1, 0, 5),include.drift = TRUE)
+summary(fit_generic_specialtyAR)
+
+```
+
+## Financial/Economy: Small Biotechnology
+
+```{r small_biotech_arima}
+#| code-fold: true
+
+fit_small_biotechAR <- Arima(diff(small_biotech_ts), order=c(0, 0, 5),include.drift = TRUE)
+
+summary(fit_small_biotechAR)
+
+```
+
+## Public Health Outcomes: Average Life Expectancy
+
+```{r life_expectancy_arima}
+#| code-fold: true
+
+fit_life_expectancyAR <- Arima(diff(ale_ts), order=c(0, 0, 2),include.drift = TRUE)
+summary(fit_life_expectancyAR)
+
+```
+
+## Public Health Outcomes: Deaths of Major Diseases
+
+```{r deaths_major_diseases_arima}
+#| code-fold: true
+
+fit_deaths_major_diseasesAR <- Arima(diff(major_diseases_ts), order=c(0, 1, 1),include.drift = TRUE)
+summary(fit_deaths_major_diseasesAR)
+
+```
+
+## Public Health Outcomes: Infant Mortality Rate
+
+```{r infant_mortality_arima}
+#| code-fold: true
+
+fit_infant_mortalityAR <- Arima(diff(infant_mortality_ts), order=c(1, 0, 1),include.drift = TRUE)
+summary(fit_infant_mortalityAR)
+
+
+```
+
+## Healthcare Access and Utilization: Health Insurance Coverage
+
+```{r health_insurance_arima}
+#| code-fold: true
+
+fit_health_insuranceAR <- Arima(diff(health_insurance_ts), order=c(0, 1, 1),include.drift = TRUE)
+summary(fit_health_insuranceAR)
+```
+
+## Healthcare Access and Utilization: Emergency Room Visits
+
+```{r emergency_room_arima}
+#| code-fold: true
+
+fit_emergency_roomAR <- Arima(diff(emergency_room_ts), order=c(1, 0, 1),include.drift = TRUE)
+summary(fit_emergency_roomAR)
+```
+
+## Healthcare Costs: Prescription Drug Costs
+
+```{r prescription_drug_costs_arima}
+#| code-fold: true
+
+fit_prescription_drug_costsAR <- Arima(diff(prescription_drug_ts), order=c(0, 0, 2),include.drift = TRUE)
+summary(fit_prescription_drug_costsAR)
+```
+
+## Healthcare Costs: GDP Contribution of Healthcare Industry
+
+```{r gdp_contribution_arima}
+#| code-fold: true
+
+fit_gdp_contributionAR <- Arima(diff(gdp_healthcare_ts), order=c(0, 1, 2),include.drift = TRUE)
+summary(fit_gdp_contributionAR)
+
+```
+
+## Health Behaviors and Risk Factors: Smoking Prevalence
+
+```{r smoking_prevalence_arima}
+#| code-fold: true
+
+fit_smoking_prevalenceAR <- Arima(diff(adult_smokers_ts), order=c(1, 0, 1),include.drift = TRUE)
+summary(fit_smoking_prevalenceAR)
+
+```
+
+## Health Behaviors and Risk Factors: Alcohol Consumption
+
+```{r alcohol_consumption_arima}
+#| code-fold: true
+
+fit_alcohol_consumptionAR <- Arima(diff(alcohol_consumption_ts), order=c(1, 0, 2),include.drift = TRUE)
+summary(fit_alcohol_consumptionAR)
+```
+:::
+
+To express the model fit in equations for each of the ARIMA models, we have to consider the parameters identified from the ACF and PACF plots. Here I show a generic way to frame the equations based on the ARIMA model parameters:
+
+$$
+ARIMA(p,d,q): (1 - \sum_{i=1}^p \phi_i L^i)(1-L)^d X_t = (1 + \sum_{j=1}^q \theta_j L^j) \epsilon_t
+$$
+
+where:
+
+-   $p$ is the number of autoregressive terms (from PACF)
+-   $d$ is the number of differencing required to make the series stationary
+-   $q$ is the number of moving average terms (from ACF)
+-   $L$ is the lag operator
+-   $phi_i$ are the coefficients of the AR terms
+-   $theta_j$ are the coefficients of the MA terms
+-   $epsilon_t$ is the error term at time
+-   $X_t$ is the time series at time
+
+***Financial/Economy: Large-scale Pharmaceutical***
+
+$$
+x_t =-1.3966x_{t-1} - 0.8309x_{t-2} + w_t + 1.3758w_{t-1} + 0.8062w_{t-2} + 0.0485w_{t-3} + 0.085w_{t-4} + 0.0787w_{t-5} + 0.0241w_{t-6} - 0.0168w_{t-7} - 0.0917w_{t-8}
+$$
+
+***Financial/Economy: Biotechnology***
+
+$$x_t = -1.7489x_{t-1} - 0.9547x_{t-2} + w_t + 1.6954w_{t-1} + 0.8776w_{t-2} - 0.0795w_{t-3} -0.0935w_{t-4}  -0.0597w_{t-5}  -0.0128w_{t-6}$$
+
+***Financial/Economy: Generic and Specialty Drug***
+
+$$x_t = -0.3292x_{t-1} + w_t + 0.3518w_{t-1}  +0.0382w_{t-2}  +0.0407w_{t-3}+ 0.0834w_{t-4} + 0.0935w_{t-5}$$
+
+***Financial/Economy: Small Biotechnology***
+
+$$x_t = w_t -0.0206w_{t-1}  +0.0194w_{t-2}  +0.0951w_{t-3}  -0.0728w_{t-4}  -0.0815w_{t-5}$$
+
+***Public Health Outcomes: Average Life Expectancy***
+
+$$x_t = w_t + 0.0001w_{t-1} - 0.9999w_{t-2}$$
+
+***Public Health Outcomes: Deaths of Major Diseases***
+
+$$x_t =w_t - 0.9997w_{t-1}$$
+
+***Public Health Outcomes: Infant Mortality Rate***
+
+$$x_t = 0.7942x_{t-1} + w_t - 0.4511w_{t-1}$$
+
+***Healthcare Access and Utilization: Health Insurance Coverage***
+
+$$x_t = w_t - w_{t-1}$$
+
+***Healthcare Access and Utilization: Emergency Room Visits***
+
+$$x_t = 0.4908x_{t-1} + w_t - w_{t-1}$$
+
+***Healthcare Costs: Prescription Drug Costs***
+
+$$x_t = w_t + 0.0232w_{t-1} - 0.0224w_{t-2}$$
+
+***Healthcare Costs: GDP Contribution of Healthcare Industry***
+
+$$x_t = w_t - 1.9692w_{t-1} - w_{t-2}$$
+
+***Health Behaviors and Risk Factors: Smoking Prevalence***
+
+$$x_t = 0.7524x_{t-1} + w_t - w_{t-1}$$
+
+***Health Behaviors and Risk Factors: Alcohol Consumption***
+
+$$x_t = 0.3896x_{t-1} + w_t - 0.2758w_{t-1} - 0.7242w_{t-2}$$
+
+# 8. Full Model Diagnostics
+
+::: panel-tabset
+## Financial/Economy: Large-scale Pharmaceutical
+
+```{r large_pharma_full_model}
+#| code-fold: true
+
+pharma_full <- capture.output(sarima(diff(pharma_ts),2, 0, 8))
+cat(pharma_full[106:125], pharma_full[length(pharma_full)], sep = "\n")
+```
+
+## Financial/Economy: Biotechnology
+
+```{r biotech_full_model}
+#| code-fold: true
+
+biotech_full <- capture.output(sarima(diff(biotech_ts),2, 0, 6))
+cat(biotech_full[136:150], biotech_full[length(biotech_full)], sep = "\n")
+
+```
+
+## Financial/Economy: Generic and Specialty Drug
+
+```{r generic_specialty_full_model}
+#| code-fold: true
+
+generic_specialty_full <- capture.output(sarima(diff(drug_ts),1, 0, 5))
+
+cat(generic_specialty_full[76:88], generic_specialty_full[length(generic_specialty_full)], sep = "\n")
+
+
+```
+
+## Financial/Economy: Small Biotechnology
+
+```{r small_biotech_full_model}
+#| code-fold: true
+
+small_biotech_full <- capture.output(sarima(diff(small_biotech_ts),0, 0, 5))
+cat(small_biotech_full[15:29], small_biotech_full[length(small_biotech_full)], sep = "\n")
+```
+
+## Public Health Outcomes: Average Life Expectancy
+
+```{r life_expectancy_full_model}
+#| code-fold: true
+
+life_expectancy_full <- capture.output(sarima(diff(ale_ts),0, 0, 2))
+
+cat(life_expectancy_full[16:36], life_expectancy_full[length(life_expectancy_full)], sep = "\n")
+
+```
+
+## Public Health Outcomes: Deaths of Major Diseases
+
+```{r deaths_major_diseases_full_model}
+#| code-fold: true
+
+deaths_major_diseases_full <- capture.output(sarima(diff(major_diseases_ts),0, 1, 1))
+
+cat(deaths_major_diseases_full[117:127], deaths_major_diseases_full[length(deaths_major_diseases_full)], sep = "\n")
+
+```
+
+## Public Health Outcomes: Infant Mortality Rate
+
+```{r infant_mortality_full_model}
+#| code-fold: true
+
+infant_mortality_full <- capture.output(sarima(diff(infant_mortality_ts),1, 0, 1))
+
+cat(infant_mortality_full[121:132], infant_mortality_full[length(infant_mortality_full)], sep = "\n")
+```
+
+## Healthcare Access and Utilization: Health Insurance Coverage
+
+```{r health_insurance_full_model}
+#| code-fold: true
+
+health_insurance_full <- capture.output(sarima(diff(health_insurance_ts),0, 1, 1))
+
+cat(health_insurance_full[116:126], health_insurance_full[length(health_insurance_full)], sep = "\n")
+```
+
+## Healthcare Access and Utilization: Emergency Room Visits
+
+```{r emergency_room_full_model}
+#| code-fold: true
+
+emergency_room_full <- capture.output(sarima(diff(emergency_room_ts),1, 0, 1))
+
+cat(emergency_room_full[64:75], emergency_room_full[length(emergency_room_full)], sep = "\n")
+```
+
+## Healthcare Costs: Prescription Drug Costs
+
+```{r prescription_drug_costs_full_model}
+#| code-fold: true
+
+prescription_drug_costs_full <- capture.output(sarima(diff(prescription_drug_ts),0, 0, 2))
+
+cat(prescription_drug_costs_full[14:25], prescription_drug_costs_full[length(prescription_drug_costs_full)], sep = "\n")
+
+```
+
+## Healthcare Costs: GDP Contribution of Healthcare Industry
+
+```{r gdp_contribution_full_model}
+#| code-fold: true
+
+gdp_contribution_full <- capture.output(sarima(diff(gdp_healthcare_ts),0, 1, 2))
+
+cat(gdp_contribution_full[123:134], gdp_contribution_full[length(gdp_contribution_full)], sep = "\n")
+
+```
+
+## Health Behaviors and Risk Factors: Smoking Prevalence
+
+```{r smoking_prevalence_full_model}
+#| code-fold: true
+
+smoking_prevalence_full <- capture.output(sarima(diff(adult_smokers_ts),1, 0, 1))
+
+cat(smoking_prevalence_full[50:61], smoking_prevalence_full[length(smoking_prevalence_full)], sep = "\n")
+
+
+```
+
+## Health Behaviors and Risk Factors: Alcohol Consumption
+
+```{r alcohol_consumption_full_model}
+#| code-fold: true
+
+alcohol_consumption_full <- capture.output(sarima(diff(alcohol_consumption_ts),1, 0, 2))
+
+cat(alcohol_consumption_full[37:49], alcohol_consumption_full[length(alcohol_consumption_full)], sep = "\n")
+
+
+```
+:::
+
+**Financial/Economy: Large-scale Pharmaceutical:** `The Standard Residual Plot` indicates good stationarity, with consistent mean and variance. `The Autocorrelation Function (ACF)` plot demonstrates no significant correlations, suggesting that the residuals are white noise and indicative of an excellent model fit. `The Quantile-Quantile (Q-Q) Plot` could be closer to normal but is acceptable. `The Ljung-Box test` yields some values above the 0.05 threshold, confirming no significant correlations and a good model fit, although some coefficients appear to be non-significant.
+
+**Financial/Economy: Biotechnology:** `The Standard Residual Plot` and `ACF plot` outcomes are promising, displaying stationarity and no significant correlations, respectively. This suggests that the model has captured the underlying process, leaving only white noise. `The Q-Q Plot` shows a reasonable approximation to normality. However, the `Ljung-Box test` shows some variability, but overall, it suggests a good fit as most coefficients are significant.
+
+**Financial/Economy: Generic and Specialty Drug:** `The Standard Residual Plot` exhibits stationarity, and `the ACF plot` lacks significant correlations, both signaling a strong model fit. `The Q-Q Plot` aligns fairly well with the expected normal distribution. `The Ljung-Box test` results are satisfactory, with most p-values are above the significance level, signifying an appropriate model fit.
+
+**Financial/Economy: Small Biotechnology:** Stationarity is reflected in the `Standard Residual Plot`, and the absence of correlation in the `ACF plot` suggests effective modeling. `The Q-Q Plot` approximates normality well. According to the `Ljung-Box test`, most values are above the 0.05 mark.
+
+**Public Health Outcomes: Average Life Expectancy:** Despite a notable dip in the `Standard Residual Plot` in 2020, the model's fit is validated by the `ACF plot` and satisfactory `Q-Q Plot`. The `Ljung-Box test` corroborates the absence of significant correlations, with a slightly high and significant p-value.
+
+**Public Health Outcomes: Deaths of Major Diseases:** Fluctuations in the `Standard Residual Plot` around 1980 and 2010 do not detract from an overall strong model fit, with the `ACF plot` showing no significant correlations and a decent `Q-Q Plot`. The `Ljung-Box test` supports a solid fit, with a marginally high but acceptable p-value.
+
+**Public Health Outcomes: Infant Mortality Rate:** Good stationarity is observed in the `Standard Residual Plot`, and the `ACF plot` indicates a well-fitted model with white noise residuals. The `Q-Q Plot` and `Ljung-Box test` results are favorable, reflecting no significant correlations and most p-values are above the 0.05 threshold.
+
+**Healthcare Access and Utilization: Health Insurance Coverage:** Despite fluctuations in the `Standard Residual Plot` around 2010, the model appears well-fitted, with the `ACF plot` showing white noise residuals. The `Q-Q Plot` is reasonably normal, and the `Ljung-Box test` supports the model fit, with a p-value that is high and slightly elevated.
+
+**Healthcare Access and Utilization: Emergency Room Visits:** Fluctuations observed in the `Standard Residual Plot` around 2010 do not affect the overall robust model fit, confirmed by the `ACF plot` and the acceptable normality in the `Q-Q Plot`. The `Ljung-Box test` results are good, with the p-value being slightly high.
+
+**Healthcare Costs: Prescription Drug Costs:** The `Standard Residual Plot` shows good stationarity, while the `ACF plot` confirms no significant correlations, indicating a strong model fit. The `Q-Q Plot` is aligned with normality, and the `Ljung-Box test` supports the model fit, with a slightly high p-value.
+
+**Healthcare Costs: GDP Contribution of Healthcare Industry:** Despite a significant drop in the `Standard Residual Plot` around 2020, the model fit is robust as evidenced by the `ACF plot` and a satisfactory `Q-Q Plot`. The `Ljung-Box test` validates the model fit with all p-values above the 0.05 threshold.
+
+**Health Behaviors and Risk Factors: Smoking Prevalence:** The `Standard Residual Plot` shows good stationarity, and the `ACF plot` indicates white noise residuals, suggesting an excellent model fit. The `Q-Q Plot` displays reasonable normality, and the `Ljung-Box test` results are positive, with most p-values are above the significance level.
+
+**Health Behaviors and Risk Factors: Alcohol Consumption:** The `Standard Residual Plot` displays good stationarity, and the `ACF plot` lacks significant correlations, indicating that the model is capturing the underlying process well. The `Q-Q Plot` is close to normality. However, the `Ljung-Box test` shows that most p-values are below 0.05.
+
+# 9. Auto ARIMA
+
+::: panel-tabset
+## Financial/Economy: Large-scale Pharmaceutical
+
+```{r large_pharma_auto_arima}
+#| code-fold: true
+
+auto.arima(diff(pharma_ts))
+```
+
+## Financial/Economy: Biotechnology
+
+```{r biotech_auto_arima}
+#| code-fold: true
+
+auto.arima(diff(biotech_ts))
+```
+
+## Financial/Economy: Generic and Specialty Drug
+
+```{r generic_specialty_auto_arima}
+#| code-fold: true
+
+auto.arima(diff(drug_ts))
+```
+
+## Financial/Economy: Small Biotechnology
+
+```{r small_biotech_auto_arima}
+#| code-fold: true
+
+auto.arima(diff(small_biotech_ts))
+
+```
+
+## Public Health Outcomes: Average Life Expectancy
+
+```{r avg_life_exp_auto_arima}
+#| code-fold: true
+
+auto.arima(diff(ale_ts))
+```
+
+## Public Health Outcomes: Deaths of Major Diseases
+
+```{r deaths_major_diseases_auto_arima}
+#| code-fold: true
+
+auto.arima(diff(major_diseases_ts))
+```
+
+## Public Health Outcomes: Infant Mortality Rate
+
+```{r infant_mortality_auto_arima}
+#| code-fold: true
+
+auto.arima(diff(infant_mortality_ts))
+
+```
+
+## Healthcare Access and Utilization: Health Insurance Coverage
+
+```{r health_insurance_auto_arima}
+#| code-fold: true
+
+auto.arima(diff(health_insurance_ts))
+```
+
+## Healthcare Access and Utilization: Emergency Room Visits
+
+```{r emergency_room_auto_arima}
+#| code-fold: true
+
+auto.arima(diff(emergency_room_ts))
+```
+
+## Healthcare Costs: Prescription Drug Costs
+
+```{r prescription_drug_auto_arima}
+#| code-fold: true
+
+auto.arima(diff(prescription_drug_ts))
+
+```
+
+## Healthcare Costs: GDP Contribution of Healthcare Industry
+
+```{r gdp_healthcare_auto_arima}
+#| code-fold: true
+
+auto.arima(diff(gdp_healthcare_ts))
+```
+
+## Health Behaviors and Risk Factors: Smoking Prevalence
+
+```{r smoking_prevalence_auto_arima}
+#| code-fold: true
+
+auto.arima(diff(adult_smokers_ts))
+```
+
+## Health Behaviors and Risk Factors: Alcohol Consumption
+
+```{r alcohol_consumption_auto_arima}
+#| code-fold: true
+
+auto.arima(diff(alcohol_consumption_ts))
+```
+:::
+
+Auto ARIMA stands for **"Automatic Autoregressive Integrated Moving Average,"** and it's designed to streamline the process of model selection in time series forecasting. Though Auto ARIMA has several advantages, such as Efficiency, Accessibility, and Adaptability, it may not always be the most reliable method for forecasting due to several limitations.
+
+Initially, it follows predetermined rules to select the optimal model, which can sometimes cause it to miss intricate patterns or complex dynamics present in the data. The automated nature of Auto ARIMA also risks overfitting, as it may create a model that fits the historical data exceptionally well but fails to predict future observations accurately. This is because the algorithm could over-adjust to the noise within the training data. Additionally, the automation might choose a model that is not necessarily the most suitable for the specific characteristics of the dataset. Therefore, while Auto ARIMA is a convenient and efficient tool for time series analysis, its forecasts should be interpreted cautiously and should not be solely relied upon without considering other models and validation techniques.
+
+# 10. Forecasting with a confidence band
+
+::: panel-tabset
+## Financial/Economy: Large-scale Pharmaceutical
+
+```{r large_pharma_forecast}
+#| code-fold: true
+
+pred_pharma=forecast(fit_pharmaAR,365)
+autoplot(pred_pharma) + theme_bw() 
+```
+
+## Financial/Economy: Biotechnology
+
+```{r biotech_forecast}
+#| code-fold: true
+
+pred_biotech=forecast(fit_biotechAR,365)
+autoplot(pred_biotech) + theme_bw() 
+```
+
+## Financial/Economy: Generic and Specialty Drug
+
+```{r generic_specialty_forecast}
+#| code-fold: true
+
+pred_drug=forecast(fit_prescription_drug_costsAR,365)
+autoplot(pred_drug) + theme_bw() 
+
+```
+
+## Financial/Economy: Small Biotechnology
+
+```{r small_biotech_forecast}
+#| code-fold: true
+
+pred_small_biotech=forecast(fit_small_biotechAR,365)
+autoplot(pred_small_biotech) + theme_bw() 
+
+```
+
+## Public Health Outcomes: Average Life Expectancy
+
+```{r avg_life_exp_forecast}
+#| code-fold: true
+
+pred_ale=forecast(fit_life_expectancyAR,50)
+autoplot(pred_ale) + theme_bw() 
+
+```
+
+## Public Health Outcomes: Deaths of Major Diseases
+
+```{r deaths_major_diseases_forecast}
+#| code-fold: true
+
+pred_major_diseases=forecast(fit_deaths_major_diseasesAR,50)
+autoplot(pred_major_diseases) + theme_bw() 
+
+```
+
+## Public Health Outcomes: Infant Mortality Rate
+
+```{r infant_mortality_forecast}
+#| code-fold: true
+
+pred_infant_mortality=forecast(fit_infant_mortalityAR,50)
+autoplot(pred_infant_mortality) + theme_bw() 
+
+```
+
+## Healthcare Access and Utilization: Health Insurance Coverage
+
+```{r health_insurance_forecast}
+#| code-fold: true
+
+pred_health_insurance=forecast(fit_health_insuranceAR,50)
+autoplot(pred_health_insurance) + theme_bw() 
+```
+
+## Healthcare Access and Utilization: Emergency Room Visits
+
+```{r emergency_room_forecast}
+#| code-fold: true
+
+pred_emergency_room=forecast(fit_emergency_roomAR,50)
+
+autoplot(pred_emergency_room) + theme_bw() 
+```
+
+## Healthcare Costs: Prescription Drug Costs
+
+```{r prescription_drug_forecast}
+#| code-fold: true
+
+pred_prescription_drug=forecast(fit_prescription_drug_costsAR,50)
+autoplot(pred_prescription_drug) + theme_bw() 
+
+```
+
+## Healthcare Costs: GDP Contribution of Healthcare Industry
+
+```{r gdp_healthcare_forecast}
+#| code-fold: true
+
+pred_gdp_healthcare=forecast(fit_gdp_contributionAR,50)
+autoplot(pred_gdp_healthcare) + theme_bw() 
+
+```
+
+## Health Behaviors and Risk Factors: Smoking Prevalence
+
+```{r smoking_prevalence_forecast}
+#| code-fold: true
+
+pred_smoking_prevalence=forecast(fit_smoking_prevalenceAR,50)
+
+autoplot(pred_smoking_prevalence) + theme_bw()
+```
+
+## Health Behaviors and Risk Factors: Alcohol Consumption
+
+```{r alcohol_consumption_forecast}
+#| code-fold: true
+
+pred_alcohol_consumption=forecast(fit_alcohol_consumptionAR,50)
+
+autoplot(pred_alcohol_consumption) + theme_bw()
+```
+:::
+
+As demonstrated in the provided visualizations, we observe forecast graphs accompanied by confidence bands. The forecasts are plotted as a blue line, while the surrounding confidence intervals are depicted in two shades of purple. The darker purple band represents a 95% confidence interval, offering a narrower range where we expect the actual values to fall under normal circumstances. Conversely, the lighter purple band signifies a 5% confidence interval, a much broader range that encapsulates more extreme potential outcomes.
+
+Notably, the confidence bands expand as the forecast extends into the future. This widening is a graphical representation of growing uncertainty in the model's predictions. The farther we predict from the last known data point, the more factors could potentially affect the outcome, thus increasing the forecast's variability. This phenomenon is typical in time series forecasting, as projections are inherently less certain the more they attempt to reach into the unknown future.
+
+This increase in the width of the confidence intervals visually underscores the importance of considering uncertainty in any forecast. For us, understanding this aspect of the forecasts is crucial since it provides insight into the risks associated with relying on these predictions for planning and strategy. It emphasizes the need for caution, particularly for longer-term forecasts, where the intervals suggest a greater range of possible outcomes.
+
+# 11. Comparing ARIMA with Benchmark Methods
+
+::: panel-tabset
+## Financial/Economy: Large-scale Pharmaceutical
+
+```{r large_pharma_benchmark}
+#| code-fold: true
+
+fit_pharma_bench <- Arima(pharma_ts, order=c(2, 0, 8),include.drift = FALSE) 
+
+autoplot(pharma_ts) +
+  autolayer(meanf(pharma_ts, h=365),
+            series="Mean", PI=FALSE) +
+  autolayer(naive(pharma_ts, h=365),
+            series="Naïve", PI=FALSE)+
+  autolayer(rwf(pharma_ts, drift=TRUE, h=365),
+            series="Drift", PI=FALSE)+
+   autolayer(forecast(fit_pharma_bench ,365), 
+            series="Arima",PI=FALSE) + theme_bw() + ggtitle("Benchmark Methods Comparison with Large-scale Pharmaceutical stock")+
+  guides(colour=guide_legend(title="Forecast")) 
+
+accuracy(pred_pharma)
+```
+
+## Financial/Economy: Biotechnology
+
+```{r biotech_benchmark}
+#| code-fold: true
+
+fit_biotech_bench <- Arima(biotech_ts, order=c(2, 0, 6),include.drift = FALSE)
+
+autoplot(biotech_ts) +
+  autolayer(meanf(biotech_ts, h=365),
+            series="Mean", PI=FALSE) +
+  autolayer(naive(biotech_ts, h=365),
+            series="Naïve", PI=FALSE)+
+  autolayer(rwf(biotech_ts, drift=TRUE, h=365),
+            series="Drift", PI=FALSE)+
+   autolayer(forecast(fit_biotech_bench ,365), 
+            series="Arima",PI=FALSE) + theme_bw() + ggtitle("Benchmark Methods Comparison with Biotechnology stock")+
+  guides(colour=guide_legend(title="Forecast")) 
+
+accuracy(pred_biotech)
+```
+
+## Financial/Economy: Generic and Specialty Drug
+
+```{r generic_specialty_benchmark}
+#| code-fold: true
+
+fit_generic_specialty_bench <- Arima(drug_ts, order=c(1, 0, 5),include.drift = FALSE)
+
+autoplot(drug_ts) +
+  autolayer(meanf(drug_ts, h=365),
+            series="Mean", PI=FALSE) +
+  autolayer(naive(drug_ts, h=365),
+            series="Naïve", PI=FALSE)+
+  autolayer(rwf(drug_ts, drift=TRUE, h=365),
+            series="Drift", PI=FALSE)+
+   autolayer(forecast(fit_generic_specialty_bench ,365),
+            series="Arima",PI=FALSE) + theme_bw() + ggtitle("Benchmark Methods Comparison with Generic and Specialty Drug stock")+
+  guides(colour=guide_legend(title="Forecast"))
+
+accuracy(pred_drug)
+```
+
+## Financial/Economy: Small Biotechnology
+
+```{r small_biotech_benchmark}
+#| code-fold: true
+
+fit_small_biotech_bench <- Arima(small_biotech_ts, order=c(0, 0, 5),include.drift = FALSE)
+
+autoplot(small_biotech_ts) +
+  autolayer(meanf(small_biotech_ts, h=365),
+            series="Mean", PI=FALSE) +
+  autolayer(naive(small_biotech_ts, h=365),
+            series="Naïve", PI=FALSE)+
+  autolayer(rwf(small_biotech_ts, drift=TRUE, h=365),
+            series="Drift", PI=FALSE)+
+   autolayer(forecast(fit_small_biotech_bench ,365),
+            series="Arima",PI=FALSE) + theme_bw() + ggtitle("Benchmark Methods Comparison with Small Biotechnology stock")+
+  guides(colour=guide_legend(title="Forecast"))
+
+accuracy(pred_small_biotech)
+```
+
+## Public Health Outcomes: Average Life Expectancy
+
+```{r avg_life_exp_benchmark}
+#| code-fold: true
+
+fit_avg_life_exp_bench <- Arima(ale_ts, order=c(0, 0, 2),include.drift = FALSE)
+
+autoplot(ale_ts) +
+  autolayer(meanf(ale_ts, h=10),
+            series="Mean", PI=FALSE) +
+  autolayer(naive(ale_ts, h=10),
+            series="Naïve", PI=FALSE)+
+  autolayer(rwf(ale_ts, drift=TRUE, h=10),
+            series="Drift", PI=FALSE)+
+   autolayer(forecast(fit_avg_life_exp_bench ,10),
+            series="Arima",PI=FALSE) + theme_bw() + ggtitle("Benchmark Methods Comparison with Average Life Expectancy")+
+  guides(colour=guide_legend(title="Forecast"))
+
+accuracy(pred_ale)
+```
+
+## Public Health Outcomes: Deaths of Major Diseases
+
+```{r deaths_major_diseases_benchmark}
+#| code-fold: true
+
+fit_deaths_major_diseases_bench <- Arima(major_diseases_ts, order=c(0, 1, 1),include.drift = FALSE)
+
+autoplot(major_diseases_ts) +
+  autolayer(meanf(major_diseases_ts, h=10),
+            series="Mean", PI=FALSE) +
+  autolayer(naive(major_diseases_ts, h=10),
+            series="Naïve", PI=FALSE)+
+  autolayer(rwf(major_diseases_ts, drift=TRUE, h=10),
+            series="Drift", PI=FALSE)+
+   autolayer(forecast(fit_deaths_major_diseases_bench ,10),
+            series="Arima",PI=FALSE) + theme_bw() + ggtitle("Benchmark Methods Comparison with Deaths of Major Diseases")+
+  guides(colour=guide_legend(title="Forecast"))
+
+accuracy(pred_major_diseases)
+```
+
+## Public Health Outcomes: Infant Mortality Rate
+
+```{r infant_mortality_benchmark}
+#| code-fold: true
+
+fit_infant_mortality_bench <- Arima(infant_mortality_ts, order=c(1, 0, 1),include.drift = FALSE)
+
+autoplot(infant_mortality_ts) +
+  autolayer(meanf(infant_mortality_ts, h=10),
+            series="Mean", PI=FALSE) +
+  autolayer(naive(infant_mortality_ts, h=10),
+            series="Naïve", PI=FALSE)+
+  autolayer(rwf(infant_mortality_ts, drift=TRUE, h=10),
+            series="Drift", PI=FALSE)+
+   autolayer(forecast(fit_infant_mortality_bench ,10),
+            series="Arima",PI=FALSE) + theme_bw() + ggtitle("Benchmark Methods Comparison with Infant Mortality Rate")+
+  guides(colour=guide_legend(title="Forecast"))
+
+accuracy(pred_infant_mortality)
+```
+
+## Healthcare Access and Utilization: Health Insurance Coverage
+
+```{r health_insurance_benchmark}
+#| code-fold: true
+
+fit_health_insurance_bench <- Arima(health_insurance_ts, order=c(0, 1, 1),include.drift = FALSE)
+
+autoplot(health_insurance_ts) +
+  autolayer(meanf(health_insurance_ts, h=10),
+            series="Mean", PI=FALSE) +
+  autolayer(naive(health_insurance_ts, h=10),
+            series="Naïve", PI=FALSE)+
+  autolayer(rwf(health_insurance_ts, drift=TRUE, h=10),
+            series="Drift", PI=FALSE)+
+   autolayer(forecast(fit_health_insurance_bench ,10),
+            series="Arima",PI=FALSE) + theme_bw() + ggtitle("Benchmark Methods Comparison with Health Insurance Coverage")+
+  guides(colour=guide_legend(title="Forecast"))
+
+accuracy(pred_health_insurance)
+```
+
+## Healthcare Access and Utilization: Emergency Room Visits
+
+```{r emergency_room_benchmark}
+#| code-fold: true
+
+fit_emergency_room_bench <- Arima(emergency_room_ts, order=c(1, 0, 1),include.drift = FALSE)
+
+autoplot(emergency_room_ts) +
+  autolayer(meanf(emergency_room_ts, h=10),
+            series="Mean", PI=FALSE) +
+  autolayer(naive(emergency_room_ts, h=10),
+            series="Naïve", PI=FALSE)+
+  autolayer(rwf(emergency_room_ts, drift=TRUE, h=10),
+            series="Drift", PI=FALSE)+
+   autolayer(forecast(fit_emergency_room_bench ,10),
+            series="Arima",PI=FALSE) + theme_bw() + ggtitle("Benchmark Methods Comparison with Emergency Room Visits")+
+  guides(colour=guide_legend(title="Forecast"))
+
+accuracy(pred_emergency_room)
+```
+
+## Healthcare Costs: Prescription Drug Costs
+
+```{r prescription_drug_benchmark}
+#| code-fold: true
+
+fit_prescription_drug_bench <- Arima(prescription_drug_ts, order=c(0, 0, 2),include.drift = FALSE)
+
+autoplot(prescription_drug_ts) +
+  autolayer(meanf(prescription_drug_ts, h=10),
+            series="Mean", PI=FALSE) +
+  autolayer(naive(prescription_drug_ts, h=10),
+            series="Naïve", PI=FALSE)+
+  autolayer(rwf(prescription_drug_ts, drift=TRUE, h=10),
+            series="Drift", PI=FALSE)+
+   autolayer(forecast(fit_prescription_drug_bench ,10),
+            series="Arima",PI=FALSE) + theme_bw() + ggtitle("Benchmark Methods Comparison with Prescription Drug Costs")+
+  guides(colour=guide_legend(title="Forecast"))
+
+accuracy(pred_prescription_drug)
+```
+
+## Healthcare Costs: GDP Contribution of Healthcare Industry
+
+```{r gdp_healthcare_benchmark}
+#| code-fold: true
+
+fit_gdp_healthcare_bench <- Arima(gdp_healthcare_ts, order=c(0, 1, 2),include.drift = FALSE)
+
+autoplot(gdp_healthcare_ts) +
+  autolayer(meanf(gdp_healthcare_ts, h=10),
+            series="Mean", PI=FALSE) +
+  autolayer(naive(gdp_healthcare_ts, h=10),
+            series="Naïve", PI=FALSE)+
+  autolayer(rwf(gdp_healthcare_ts, drift=TRUE, h=10),
+            series="Drift", PI=FALSE)+
+   autolayer(forecast(fit_gdp_healthcare_bench ,10),
+            series="Arima",PI=FALSE) + theme_bw() + ggtitle("Benchmark Methods Comparison with GDP Contribution of Healthcare Industry")+
+  guides(colour=guide_legend(title="Forecast"))
+
+accuracy(pred_gdp_healthcare)
+```
+
+## Health Behaviors and Risk Factors: Smoking Prevalence
+
+```{r smoking_prevalence_benchmark}
+#| code-fold: true
+
+fit_smoking_prevalence_bench <- Arima(adult_smokers_ts, order=c(1, 0, 1),include.drift = FALSE)
+
+autoplot(adult_smokers_ts) +
+  autolayer(meanf(adult_smokers_ts, h=10),
+            series="Mean", PI=FALSE) +
+  autolayer(naive(adult_smokers_ts, h=10),
+            series="Naïve", PI=FALSE)+
+  autolayer(rwf(adult_smokers_ts, drift=TRUE, h=10),
+            series="Drift", PI=FALSE)+
+   autolayer(forecast(fit_smoking_prevalence_bench ,10),
+            series="Arima",PI=FALSE) + theme_bw() + ggtitle("Benchmark Methods Comparison with Smoking Prevalence")+
+  guides(colour=guide_legend(title="Forecast"))
+
+accuracy(pred_smoking_prevalence)
+```
+
+## Health Behaviors and Risk Factors: Alcohol Consumption
+
+```{r alcohol_consumption_benchmark}
+#| code-fold: true
+
+fit_alcohol_consumption_bench <- Arima(alcohol_consumption_ts, order=c(1, 0, 2),include.drift = FALSE)
+
+autoplot(alcohol_consumption_ts) +
+  autolayer(meanf(alcohol_consumption_ts, h=10),
+            series="Mean", PI=FALSE) +
+  autolayer(naive(alcohol_consumption_ts, h=10),
+            series="Naïve", PI=FALSE)+
+  autolayer(rwf(alcohol_consumption_ts, drift=TRUE, h=10),
+            series="Drift", PI=FALSE)+
+   autolayer(forecast(fit_alcohol_consumption_bench ,10),
+            series="Arima",PI=FALSE) + theme_bw() + ggtitle("Benchmark Methods Comparison with Alcohol Consumption")+
+  guides(colour=guide_legend(title="Forecast"))
+
+accuracy(pred_alcohol_consumption)
+```
+:::
+
+**Financial/Economy: Large-scale Pharmaceutical:** The ARIMA model outperforms basic benchmarks like Drift, Mean, and Naïve approaches by adapting to the series' volatility, exhibiting predictive capacity beyond the simplistic methods. These benchmarks fail to adjust to data fluctuations, leading to potentially higher forecast errors in a volatile market. The metrics, excluding MAPE, endorse ARIMA as the preferred model for forecasting in this context, assuming the model's visual fit and low residual autocorrelation are consistent in out-of-sample validation.
+
+**Financial/Economy: Biotechnology:** As with the biotechnology stock, the ARIMA model appears to be more sophisticated than the benchmarks, adjusting for the trend and volatility in the data. In contrast, static benchmarks may not capture the stock's dynamism, likely yielding less accuracy. While the ARIMA model's metrics suggest it's grasping the data's structure, high MPE and MAPE could indicate less accurate percentage predictions or be skewed by outliers. The relatively lower ME and MASE indicate that ARIMA provides forecasts closer to actual values compared to naïve predictions. However, elevated RMSE and MAE point to potential improvement areas or reflect the inherent volatility of biotech stocks.
+
+**Financial/Economy: Generic and Specialty Drug:** The ARIMA model appears to be the best fit for the volatility observed in the stock price, showing a more adaptive approach compared to the simplistic benchmark methods. The static benchmarks (Drift, Mean, Naïve) are not capturing the dynamics of the series and are unlikely to be useful for volatile financial time series like this one. The ARIMA model's higher RMSE and MAE indicate that there are large errors, which could be due to the volatility and potential outliers in the stock price series. Despite the larger scale of errors, the ARIMA model is still the preferred method over the simplistic benchmarks given the context of this stock's price behavior.
+
+**Financial/Economy: Small Biotechnology:** The ARIMA model shows adaptability and seems to provide the most sophisticated forecast among the methods shown. Its predictive power is more nuanced than the simple benchmarks, which do not anticipate changes in stock prices. Given the RMSE and MAE values, the ARIMA model seems reasonably effective for this stock, although as always with volatile stocks like those in biotechnology, forecasts can be challenging. The MASE value indicates that the ARIMA model performs better than a naïve baseline but could potentially be improved further for greater accuracy. The other methods do not appear to be useful for forecasting given their simplistic approach to this volatile data.
+
+**Public Health Outcomes: Average Life Expectancy:** The ARIMA model seems to provide a more reasonable forecast for life expectancy by continuing the historical trend of improvement, which is supported by lower error metrics than the naïve or mean methods. However, the MASE indicates that there's still considerable room for model improvement, and the autocorrelation of residuals suggests the model might benefit from further tweaking. The invalid MPE and MAPE point to potential data issues that need to be addressed for a more reliable analysis.
+
+**Public Health Outcomes: Deaths of Major Diseases:** Although the ARIMA model demonstrates some improvement over the naïve benchmark, with a MASE marginally under 1, the relatively elevated error metrics suggest there is considerable scope for enhancing the model's accuracy.
+
+**Public Health Outcomes: Infant Mortality Rate:** The ARIMA model's forecasts are sensible, considering the historical downward trend in infant mortality rates. The model's lower error metrics suggest it is capturing the historical trend effectively without overfitting (as indicated by the near-zero ACF1). However, the forecasting models should always consider the potential impact of new health policies, medical advancements, or other external factors that could affect future rates. The ARIMA model seems preferable for capturing the trend over the other benchmark methods but should be used cautiously, especially in light of the infinite MPE and MAPE values, which could skew the interpretation of forecast accuracy.
+
+**Healthcare Access and Utilization: Health Insurance Coverage:** The ARIMA model seems to be a reasonable method for forecasting health insurance coverage, given its overall performance in error metrics. It does not predict major changes, which could be sensible unless there are expected policy changes or market shifts that it does not account for. The Drift and Naïve methods provide simplistic forecasts that may not be as reliable due to the complexity and potential policy-driven nature of health insurance coverage trends. The high MPE and MAPE values indicate that we should take care when interpreting the results, as they suggest the potential influence of outliers or data issues. The MASE value, being below 1 but not significantly low, indicates that there is room for improvement in the ARIMA model's predictive power, but it still performs better than a simple naive forecast. The ACF1 value, being very close to zero, supports that the residuals of the ARIMA model do not show significant autocorrelation, which is a positive sign that the model is utilizing the information in the data effectively.
+
+**Healthcare Access and Utilization: Emergency Room Visits:** The ARIMA model's flat forecast could imply that it is not detecting any significant trend or seasonal patterns in the data, or it has determined that the historical fluctuation is too irregular to project a clear future trend. Given the potentially unpredictable nature of emergency room visits, which can be influenced by numerous external factors such as epidemics, natural disasters, and changes in healthcare policy, this might be a reasonable assumption. However, the high percentage errors (MPE and MAPE) indicate that the model may not be well-suited to the data's variability or may not be capturing some underlying patterns that could improve forecast accuracy. The positive ACF1 also suggests that incorporating additional lag variables or considering external factors might enhance the model's predictive capability. The use of ARIMA in this context should consider additional data exploration and possibly the inclusion of external variables to account for the observed autocorrelation and high percentage errors.
+
+**Healthcare Costs: Prescription Drug Costs:** The ARIMA model forecasts a decrease, then be flat. The Drift method indicates a significant increase. The Mean and Naïve methods project a flat trend into the future. Metrics suggest that the ARIMA model is reasonably accurate, but has room for improvement (MASE close to 1). The forecast should be used cautiously, as drug costs can be influenced by various unpredictable factors such as policy changes and market dynamics.
+
+**Healthcare Costs: GDP Contribution of Healthcare Industry:** Drift suggests a steeper increase. ARIMA, Mean and Naïve predict a flat trend. Metrics imply the ARIMA model underestimates slightly (negative ME), and similar to a naive forecast (MASE around 0.3). The negative MPE and high MAPE suggest percentage errors might be influenced by extreme values or data anomalies. We have to be cautious due to potential policy and economic changes impacting healthcare's GDP contribution.
+
+**Health Behaviors and Risk Factors: Smoking Prevalence:** The ARIMA model predicts an increase.The Drift model projects a pronounced decrease. And the Mean and Naïve models suggest stability. The metrics suggest that while the ARIMA model fits relatively well with a moderate RMSE, it generally underestimates the prevalence (negative ME). With a MASE closer to 1, its performance is comparable to a naive model. The negative ACF1 implies a slight negative autocorrelation of residuals.
+
+**Health Behaviors and Risk Factors: Alcohol Consumption:** ARIMA suggests a sharp increase. Drift shows a decrease.Mean and Naïve predict flat trends. Metrics indicate a decent ARIMA fit (low RMSE and MAE), slight underestimation (negative ME), and predictions close to a naive model (MASE near 0.78). The negative ACF1 points to minimal negative autocorrelation in residuals. The upward forecast by ARIMA might consider historical fluctuation patterns, but real-world factors such as policy changes and social trends could significantly affect future consumption rates.
+
+# 12. SARIMA
+
+For `GDP contribution of Healthcare Industry`, there could be a justifiable expectation of seasonal patterns. This could arise from fiscal policy cycles that impact healthcare spending or from seasonal variations in healthcare service utilization---for instance, higher hospital admissions during winter months due to flu season. The implementation of healthcare policies, which often follow an annual cycle, might also lead to discernible seasonal effects on the economic indicators within the healthcare sector.
+
+For the other data, including `average life expectancy`, `deaths from major diseases`, `infant mortality rates`, `health insurance coverage`, `emergency room visits`, `costs of prescription drugs`, `smoking prevelance`, and `alcohol consumpition`, we don't consider applying SARIMA models, because of the absence of clear seasonal patterns when dealing with annual data points. These health outcomes typically reflect **long-term** trends and **gradual change**s due to advancements in medicine, public health interventions, or policy changes, rather than seasonal fluctuations. Since SARIMA models are specifically tailored to capture and forecast seasonal behaviors, they would not offer any advantage for data that does not exhibit such seasonality.
+
+What's more, SARIMA models are typically not applied to **stock data** from industries like pharmaceuticals and biotechnology because these financial markets often do not exhibit clear, consistent seasonal patterns that SARIMA models are designed to capture. We know that stock prices are influenced by a multitude of factors including market sentiments, regulatory changes, and company-specific news that do not follow a seasonal trend. Additionally, the volatility in these markets is often driven by complex dynamics that are better modeled by techniques suited for non-seasonal financial time series analysis.
+
+As a result, in this section, we will apply the `SARIMA model` to the GDP contribution of the Healthcare Industry.
+
+## 12.1 Log Transformation of the data
+
+```{r gdp_log}
+#| code-fold: true
+
+# Create log transformed time series for GDP Contribution of Healthcare Industry
+gdp_healthcare$log.GDP<-log(gdp_healthcare$GDP)
+
+lg.gdp.ts<-ts(gdp_healthcare$log.GDP,star=decimal_date(as.Date("2018-01-01",format = "%Y-%m-%d")),frequency = 4)
+
+autoplot(lg.gdp.ts, color = "#27aeef") +
+  xlab("Year") + ylab("") + theme_bw() +
+  ggtitle("Log Transformed GDP of Healthcare Industry")
+```
+
+## 12.2 Fit SARIMA on GDP Contribution of Healthcare Industry
+
+::: panel-tabset
+### ACF and PACF Plots
+
+```{r gdp_sarima_acf_pacf, warning=FALSE}
+#| code-fold: true
+
+# ACF and PACF plots for GDP Contribution of Healthcare Industry
+# Do the first differencing and seasonal differencing
+
+ggAcf(lg.gdp.ts %>% 
+        diff() %>% 
+        diff(4), lag.max = 30, main="Seasonal Differenced + First Differenced ACF")
+ggPacf(lg.gdp.ts %>% 
+         diff() %>% 
+         diff(4), lag.max = 30, main="Seasonal Differenced + First Differenced PACF")
+```
+
+As we can see from the ACF and PACF plots of the seasonal differenced and first differenced time series of the log-transformed GDP contribution of the healthcare industry, let's say: `d`=1, `D`=1, `p`=0,1,2, `q`=0,1,2, `P`=1,2 , and `Q`=1, 2.
+
+### Best SARIMA Model
+
+Based on the AIC, BIC, and AICc values, the best model for the log-transformed GDP contribution of the healthcare industry is **ARIMA(0,1,1)(0,1,1)\[4\]**.
+
+```{r gdp_sarima_best}
+#| code-fold: true
+
+SARIMA.c=function(p1,p2,q1,q2,P1,P2,Q1,Q2,data){
+  
+  temp=c()
+  d=1
+  D=1
+  s=12
+  
+  i=1
+  temp= data.frame()
+  ls=matrix(rep(NA,9*35),nrow=35)
+  for (p in p1:p2)
+  {
+    for(q in q1:q2)
+    {
+      for(P in P1:P2)
+      {
+        for(Q in Q1:Q2)
+        {
+          if(p+d+q+P+D+Q<=9)
+          {
+            model<- Arima(data,order=c(p-1,d,q-1),seasonal=c(P-1,D,Q-1))
+            ls[i,]= c(p-1,d,q-1,P-1,D,Q-1,model$aic,model$bic,model$aicc)
+            i=i+1
+          }
+        }
+      }
+    }
+  }
+  
+  temp= as.data.frame(ls)
+  names(temp)= c("p","d","q","P","D","Q","AIC","BIC","AICc")
+  temp
+}
+
+output=SARIMA.c(p1=1,p2=3,q1=1,q2=3,P1=1,P2=3,Q1=1,Q2=3,lg.gdp.ts)
+
+knitr::kable(output)
+output[which.min(output$AIC),]
+output[which.min(output$BIC),]
+output[which.min(output$AICc),]
+```
+
+### Model Diagnostics
+
+The ACF plot of the residuals of the ARIMA(0,1,1)(0,1,1)\[4\] model for the log-transformed GDP contribution of the healthcare industry shows that the residuals are not autocorrelated. The Ljung-Box test also confirms that the residuals are not autocorrelated, with p-values greater than 0.05.
+
+```{r gdp_sarima_diagnostics}
+#| code-fold: true
+
+capture.output(sarima(lg.gdp.ts, 0,1,1,0,1,1,4)) 
+```
+
+### Model Fitting
+
+The Equation for the best SARIMA model is:
+
+$$
+(1-B)(1-B^4)(Y_t - \mu)=(1 - 0.5889B-0.9998B^4)\varepsilon_t
+$$
+
+```{r gdp_sarima_fitting}
+#| code-fold: true
+
+fit <- Arima(lg.gdp.ts, order=c(0,1,1), seasonal=c(0,1,1))
+summary(fit)
+```
+
+### Forecasting
+
+As we can see from the forecast plot, the GDP Contribution of the Healthcare Industry is expected to increase in the next several years.
+
+```{r gdp_sarima_forecasting}
+#| code-fold: true
+
+sarima.for(lg.gdp.ts, 60, 0,1,1,0,1,1,4)
+```
+
+### Compare SARIMA with Benchmark
+
+```{r gdp_sarima_compare}
+#| code-fold: true
+
+fit_gdp_bench <- Arima(lg.gdp.ts, order=c(0,1,1), seasonal=c(0,1,1), include.drift=FALSE) 
+autoplot(lg.gdp.ts) +
+  autolayer(meanf(lg.gdp.ts, h=12), series="Mean", PI=FALSE) +
+  autolayer(naive(lg.gdp.ts, h=12), series="Naïve", PI=FALSE) +
+  autolayer(rwf(lg.gdp.ts, drift=TRUE, h=12), series="Drift", PI=FALSE) +
+  autolayer(forecast(fit_gdp_bench, 12), series="Arima", PI=FALSE) +
+  theme_bw() +
+  ggtitle("Benchmark Methods Comparison of Healthcare Industry GDP Contribution") +
+  guides(colour=guide_legend(title="Forecast"))
+```
+
+As we can see from the above plot, the ARIMA model outperforms the benchmark methods in forecasting the log-transformed GDP contribution of the healthcare industry. It not only shows the increasing trend but also captures the fluctuations. The Drift method only captures the increasing trend, while the Naïve and Mean methods show flat lines.
+
+### Cross-validation
+
+```{r gdp_sarima_cv, warning=FALSE}
+#| code-fold: true
+
+s <- 4
+
+# The length of the time series
+len <- length(lg.gdp.ts)
+st <- tsp(lg.gdp.ts)[1]+(s-1)/s
+
+# Preallocate vectors to store forecasts and actual values
+one_step_forecasts <- vector("numeric", len-s)
+s_step_forecasts <- vector("numeric", len-s)
+actuals <- vector("numeric", len-s)
+
+# Loop over the time series
+for (i in 1:(len - s)) {
+  # Fit the model on the data up to the current point
+  model <- auto.arima(window(lg.gdp.ts, end=st + i +s-1))
+  
+  # Forecast 1 step ahead
+  one_step_forecasts[i] <- forecast(model, h=1)$mean
+  
+  # Forecast s steps ahead
+  s_step_forecasts[i] <- forecast(model, h=s)$mean[s]
+  
+  # Store the actual value for the current point
+  actuals[i] <- lg.gdp.ts[i+s]
+}
+
+# Calculate errors for 1-step forecasts
+one_step_errors <- actuals - one_step_forecasts
+one_step_mae <- mean(abs(one_step_errors))
+one_step_rmse <- sqrt(mean(one_step_errors^2))
+
+# Calculate errors for s-step forecasts
+s_step_errors <- actuals - s_step_forecasts
+s_step_mae <- mean(abs(s_step_errors))
+s_step_rmse <- sqrt(mean(s_step_errors^2))
+
+# Print the error metrics
+cat("1-Step Forecast MAE of Healthcare Industry GDP Contribution:", one_step_mae, "\n")
+cat("1-Step Forecast RMSE of Healthcare Industry GDP Contribution::", one_step_rmse, "\n")
+cat("S-Step Forecast MAE of Healthcare Industry GDP Contribution:", s_step_mae, "\n")
+cat("S-Step Forecast RMSE of Healthcare Industry GDP Contribution:", s_step_rmse, "\n")
+```
+:::
+
+Based on the AIC, BIC, and AICc values, I found the best model for the log-transformed GDP contribution of the healthcare industry is **ARIMA(0,1,1)(0,1,1)\[4\]**. Then we can see from the forecasting plot above, the GDP contribution of the healthcare industry is expected to increase in the next several years, although there was a drop in 2020 due to the COVID-19 pandemic. What's more, we can see the increase trend of the GDP contribution of the healthcare industry is becoming more dramatic after COVID-19. To conclude, the healthcare industry in the US is expected to keep growing in the future. And the `Healthcare` is becoming more and more important in the US economy after the COVID-19 pandemic.

@@ -1,0 +1,69 @@
+---
+title: "Introduction"
+---
+
+# Health in the United States
+
+<img src="images/Title_Pic_Health.png" alt="Title Picture" style="width: 80%; height: 60%; display: block; margin: auto;"/>
+
+## 1.1 Topic Explanation
+
+The health of the United States is a multifaceted and dynamic topic that encompasses the well-being of its citizens, the quality and accessibility of healthcare services, and the policies that shape the nation's health systems. It's an intricate topic, including public health initiatives, individual lifestyle choices, healthcare provision, and socioeconomic. At its core, the health of the US is reflected in the life expectancy of its people, the prevalence of diseases and conditions, and the measures taken to prevent and treat the diseases. This spans from the individual level, such as personal preventive health behaviors, to the systemic, including the structure and efficiency of healthcare delivery.
+
+The US healthcare system is characterized by a blend of private and public funding, with medical services provided by a combination of private businesses and government programs. Accessibility and quality of care are critical issues, influenced by insurance coverage, healthcare costs, and the distribution of health resources.
+
+Public health in the US is a collective effort to safeguard and improve community health through preventive medicine, health education, control of communicable diseases, application of sanitary measures, and monitoring of environmental hazards. These efforts are crucial in addressing chronic diseases, which are the leading causes of death and disability in the country, affecting the quality of life of millions of Americans.
+
+The health status of the US can also be gauged through various health indicators such as infant mortality rates, obesity prevalence, and vaccination coverage, which provide insights into the nation's health challenges and successes. Understanding the health of the US requires a consideration of the diverse factors that contribute to health outcomes, including genetic predispositions, lifestyle choices, environmental exposures, and social determinants such as income, education, and employment.
+
+## 1.2 Big Picture
+
+<img src="images/Health_US.png" alt="Health in the US" style="width: 100%; height: 100%; display: block; margin: auto;"/>
+
+As show by the **Big Picture**, this project will focus on the following aspects(angles) of health in the United States:
+
+**Changes in Public Health Outcomes:** This aspect looks at the overall well-being of the population, measured by key indicators such as average life expectancy, mortality rates of major diseases like heart disease and cancer, diabetes prevalence, infant mortality rates, and the impact of significant events like the COVID-19 pandemic. These outcomes provide a snapshot of the nation's health and are influenced by various factors, including healthcare policies, societal behavior, and environmental conditions.
+
+**Changes in Healthcare Access and Utilization:** Health insurance coverage is a critical component, particularly when considering the before and after effects of the Affordable Care Act (ACA). The ACA aimed to increase insurance coverage and access to healthcare services. Utilization patterns, such as emergency room visits, also shed light on how healthcare services are used and the efficiency of healthcare delivery systems.
+
+**Changes in Healthcare Costs:** Healthcare spending is a significant part of the U.S. economy, accounting for a considerable percentage of the Gross Domestic Product (GDP). This includes the costs associated with prescription drugs, which have evolved over time, and the broader costs of drug development and healthcare services. Understanding these costs is essential for policy-making and for addressing the affordability of healthcare.
+
+**Changes in Health Behaviors and Risk Factors:** Lifestyle choices and behaviors, such as smoking and alcohol consumption, play a vital role in determining health outcomes. Over time, changes in these behaviors can lead to shifts in the overall health profile of the population, with direct implications for public health strategies and healthcare needs.
+
+**Changes in Financial/Economy:** The economic implications of health are seen in areas like pharmaceutical stock prices, including major companies such as Pfizer and Johnson & Johnson. The stock market can be a reflection of the health sector's performance and is influenced by drug approvals, public health crises, and policy changes. This financial perspective is intertwined with the broader aspects of health in the country.
+
+## 1.3 Literature Review
+
+The study of the United States' health through time series analysis offers a unique perspective on the nation's well-being, encapsulating the changes and trends over time. Historically, Starfield et al. (2005) have utilized time series methods to track the performance of healthcare systems, revealing the impact of policy changes and healthcare reforms on patient outcomes. More recent literature has shifted focus toward the role of technology and data analytics in understanding health trends, emphasizing the use of big data to predict and manage health crises (Krumholz, 2014).
+
+A significant area of exploration is the correlation between economic conditions and health. Ruhm (2000) famously posited the counterintuitive relationship where recessions appear to improve overall health outcomes, a hypothesis that has been the subject of ongoing debate and refinement through subsequent time series examinations. This economic-health relationship remains a contentious topic, with researchers like Xu et al. (2016) using time series models to assess the long-term effects of economic cycles on health behaviors and outcomes.
+
+Time series analyses have also been pivotal in epidemiology, especially for communicable diseases. Studies such as Viboud et al. (2006) have dissected the seasonality and temporal patterns of influenza outbreaks, informing public health responses and vaccination strategies. During COVID-19, such analyses have gained heightened importance, underscoring the need for robust forecasting models in pandemic preparedness and response (Covid-19 Forecast Hub, 2020).
+
+Chronic diseases have not escaped the scrutiny of time series analysis either. The rise of conditions like obesity and diabetes has been meticulously charted over time, with studies by Gregg et al. (2014) highlighting the surge in prevalence and the subsequent stabilization trends, prompting discussions on the efficacy of public health interventions.
+
+What's more, debates in the literature often revolve around the methodological rigor and the potential for confounding variables in time series analysis. The field continuously evolves with advancements in statistical methods, such as the application of autoregressive integrated moving average (ARIMA) models, which refine the precision of health trend analysis (Box et al., 2015).
+
+## 1.4 Guiding Question
+
+### 1.4.1 Ten Research Questions:
+
+**1. How has the average life expectancy in the US changed?**
+
+**2. What are the trends in the mortality rates of major diseases (e.g., heart disease, cancer, diabetes) over the last few decades?**
+
+**3. How have infant mortality rates varied over time?**
+
+**4. How did the Covid-19 influence the people's health in the US? And how did the pandemic influence the GDP contribution of Health Industry?**
+
+**5. Are there seasonal patterns or cyclical fluctuations in the health industry's GDP contribution, and do they correspond to specific events or seasons?**
+
+**6. How has the rate of health insurance coverage changed before and after the implementation of the Affordable Care Act (ACA)?**
+
+**7. What are the patterns in emergency room visits over the years, and how do they relate to health outcomes?**
+
+**8. How have the costs of prescription drugs evolved over the past 20 years? And How have the costs of drug development changed over time? Is there a relationship between the costs of prescription drugs and the average life expectancy in the US?**
+
+**9. How have smoking and alcohol consumption rates changed over time, and what impact have they had on public health?**
+
+**10. How to use time series analysis and forecasting models to predict the future contribution of the U.S. Health Industry to GDP based on historical data and key economic indicators?**
